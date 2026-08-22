@@ -23,6 +23,13 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Portapapeles"
 
+# Localizaciones. Van fuera de Sources/ para que SwiftPM no las trate como recursos del
+# target: el bundle lo armamos aquí a mano.
+for LPROJ in Resources/*.lproj; do
+    [ -d "$LPROJ" ] || continue
+    cp -R "$LPROJ" "$APP/Contents/Resources/"
+done
+
 ICONSET="$BUILD_DIR/AppIcon.iconset"
 rm -rf "$ICONSET"; mkdir -p "$ICONSET"
 swift tools/MakeIcon.swift "$ICONSET" >/dev/null
@@ -37,6 +44,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleDisplayName</key><string>$APP_NAME</string>
     <key>CFBundleExecutable</key><string>Portapapeles</string>
     <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
+    <!-- Inglés es el idioma base: si el sistema no está en español, la app sale en inglés. -->
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array><string>en</string><string>es</string></array>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>

@@ -35,7 +35,7 @@ una tarjeta, arrastrar el panel por la cabecera, el menú contextual, el menú `
 "Restablecer posición", Preferencias desde el panel, el ítem de inicio de sesión, y copiar
 y volver a pegar imágenes y varios archivos del Finder.
 
-**Sigue sin verse renderizado:** "Sin resultados" (búsqueda sin coincidencias).
+**Toda la UI se ha visto renderizada**, incluido "Sin resultados", y en los dos idiomas.
 
 ## Por qué es un proyecto aparte
 
@@ -62,6 +62,7 @@ Un solo target SwiftPM, sin dependencias. `LSUIElement`, vive en la barra de men
 | `tools/TogglePanel.swift` | abre el panel por notificación distribuida (solo con `CLIP_DEBUG=1`) |
 | `tools/ToggleSettings.swift` | lo mismo para Preferencias |
 | `Formula/portapapeles.rb` | fórmula de Homebrew; compila desde el fuente en el equipo del usuario |
+| `Resources/*.lproj/` | traducciones (`en` e `es`); `build.sh` las copia al bundle |
 
 ### Detalles que importan
 
@@ -76,6 +77,17 @@ Un solo target SwiftPM, sin dependencias. `LSUIElement`, vive en la barra de men
   de Homebrew) y redirigir `--cache-path` / `--config-path` / `--security-path` / `--scratch-path`
   fuera de `$HOME`. `build.sh` lo recibe todo por la variable `SWIFT_BUILD_FLAGS`.
   Probado de punta a punta con un tap local: instala, `brew test` pasa y la app arranca.
+- **Idioma:** las claves de traducción son el texto en inglés y viven en
+  `Resources/en.lproj` y `es.lproj`. En SwiftUI basta `Text("…")`; para lo que se arma como
+  `String` (menús de AppKit, `NSAlert`, formatos) está `L.t(…)`. Dos trampas: `Text("a" + "b")`
+  produce un `String` y **no** se traduce —hay que envolverlo en `L.t`—, y un ternario de dos
+  literales necesita `LocalizedStringKey(…)` explícito. El idioma base es inglés
+  (`CFBundleDevelopmentRegion`), así que fuera del español la app sale en inglés sola.
+- **El hover selecciona pero no desplaza la lista.** `store.selectionCameFromKeyboard`
+  distingue quién movió la selección. Si el hover también desplazara, `scrollTo(anchor: .center)`
+  centraría la tarjeta bajo el puntero, el contenido se movería solo, otra tarjeta quedaría
+  debajo, y así en bucle: la lista se escapa mientras bajas el ratón. Los botones de la tarjeta
+  tienen ancho fijo por lo mismo, para que el texto no se recoloque al pasar por encima.
 - **El hover no manda hasta que el ratón se mueve** (`PanelController.hoverCanSelect`).
   El panel nace junto al cursor de texto, así que a menudo aparece bajo el puntero; sin
   esa guarda la tarjeta de debajo se seleccionaba sola y ⏎ / ⌘P / ⌘⌫ actuaban sobre ella.

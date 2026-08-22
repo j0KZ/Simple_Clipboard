@@ -90,13 +90,25 @@ final class Prefs: ObservableObject {
 enum PanelAnchor: String, CaseIterable, Identifiable {
     case caret, mouse, center
     var id: String { rawValue }
-    var title: String {
+    /// Clave en inglés; se traduce en el punto de uso con `L.t`.
+    var titleKey: String {
         switch self {
-        case .caret: return "Donde está el cursor de texto"
-        case .mouse: return "Donde está el puntero"
-        case .center: return "Centro de la pantalla"
+        case .caret: return "Where the text cursor is"
+        case .mouse: return "Where the pointer is"
+        case .center: return "Center of the screen"
         }
     }
+}
+
+/// Textos de la interfaz. Las claves son el texto en inglés; la traducción vive en
+/// `Resources/*.lproj/Localizable.strings`. Las vistas SwiftUI localizan solas al usar
+/// `Text("…")`; esto es para lo que se arma como `String` (AppKit, formatos).
+enum L {
+    static func t(_ key: String) -> String { NSLocalizedString(key, comment: "") }
+
+    /// El idioma que la app está mostrando de verdad, no la región del sistema. Se usa para
+    /// que "hace 5 min" salga en el mismo idioma que el resto de la interfaz.
+    static let locale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "en")
 }
 
 /// Registro opcional: exporta CLIP_DEBUG=1 antes de lanzar la app.

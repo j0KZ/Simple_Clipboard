@@ -11,8 +11,8 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             general.tabItem { Label("General", systemImage: "gearshape") }
-            history.tabItem { Label("Historial", systemImage: "clock.arrow.circlepath") }
-            about.tabItem { Label("Acerca de", systemImage: "info.circle") }
+            history.tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
+            about.tabItem { Label("About", systemImage: "info.circle") }
         }
         // Alto suficiente para que "General" entre completa: con 380 la sección "Pegado"
         // quedaba bajo el borde y el aviso de Accesibilidad solo se veía haciendo scroll.
@@ -25,9 +25,9 @@ struct SettingsView: View {
 
     private var general: some View {
         Form {
-            Section("Atajo") {
+            Section("Shortcut") {
                 HStack {
-                    Text("Abrir el historial")
+                    Text("Open the history")
                     Spacer()
                     HotKeyRecorder(keyCode: $prefs.hotKeyCode, modifiers: $prefs.hotKeyMods) {
                         Task { @MainActor in
@@ -36,36 +36,38 @@ struct SettingsView: View {
                         }
                     }
                 }
-                Text("Es el ⊞+V de Windows. Lo que elijas queda en el portapapeles, así que el ⌘V normal lo vuelve a pegar.")
+                Text(L.t("It is the Windows ⊞+V. Whatever you pick stays on the clipboard, "
+                         + "so a normal ⌘V pastes it again."))
                     .font(.caption).foregroundStyle(.secondary)
                 if !prefs.hotKeyRegistered {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                        Text("El sistema rechazó esta combinación: otra app ya la tiene. Elige otra.")
+                        Text(L.t("The system rejected this combination: another app already has it. "
+                                 + "Pick a different one."))
                             .font(.caption)
                     }
                 }
             }
 
-            Section("Dónde aparece el panel") {
-                Picker("Posición", selection: Binding(get: { prefs.anchor }, set: { prefs.anchor = $0 })) {
-                    ForEach(PanelAnchor.allCases) { Text($0.title).tag($0) }
+            Section("Where the panel appears") {
+                Picker("Position", selection: Binding(get: { prefs.anchor }, set: { prefs.anchor = $0 })) {
+                    ForEach(PanelAnchor.allCases) { Text(L.t($0.titleKey)).tag($0) }
                 }
                 .pickerStyle(.radioGroup)
             }
 
-            Section("Pegado") {
-                Toggle("Pegar automáticamente al elegir", isOn: $prefs.autoPaste)
+            Section("Pasting") {
+                Toggle("Paste automatically when picking", isOn: $prefs.autoPaste)
                 HStack(spacing: 8) {
                     Image(systemName: accessibilityGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                         .foregroundStyle(accessibilityGranted ? .green : .orange)
                     Text(accessibilityGranted
-                         ? "Accesibilidad concedida: pega solo y se abre junto al cursor."
-                         : "Sin Accesibilidad solo copia, y el panel se abre junto al puntero.")
+                         ? LocalizedStringKey("Accessibility granted: it pastes on its own and opens next to the cursor.")
+                         : LocalizedStringKey("Without Accessibility it only copies, and the panel opens next to the pointer."))
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     if !accessibilityGranted {
-                        Button("Conceder…") {
+                        Button("Grant…") {
                             Paster.requestPermission()
                             Paster.openAccessibilitySettings()
                         }
@@ -73,17 +75,16 @@ struct SettingsView: View {
                 }
                 if !accessibilityGranted {
                     // La confusión clásica: la casilla figura marcada, pero esa entrada es de
-                    // otra copia de la app (otra ruta). macOS solo muestra el nombre, así que
-                    // las dos se ven iguales.
-                    Text("¿Ya lo concediste y sigue en naranja? Esa entrada de la lista suele ser "
-                         + "de otra copia de la app: macOS muestra solo el nombre y no la ruta. "
-                         + "Quítala con «−», vuelve a agregar esta y reinicia la app.")
+                    // otra copia de la app (otra ruta). macOS solo muestra el nombre.
+                    Text(L.t("Already granted but still orange? That entry in the list is usually for "
+                             + "another copy of the app: macOS shows only the name, not the path. "
+                             + "Remove it with «−», add this one again and restart the app."))
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
 
             Section {
-                Toggle("Abrir al iniciar sesión", isOn: $prefs.launchAtLogin)
+                Toggle("Open at login", isOn: $prefs.launchAtLogin)
                     .onChange(of: prefs.launchAtLogin) { _, on in
                         // La vuelta atrás dispara este mismo onChange; el flag corta el bucle.
                         guard !revertingLoginItem else { revertingLoginItem = false; return }
@@ -91,9 +92,9 @@ struct SettingsView: View {
                         revertingLoginItem = true
                         prefs.launchAtLogin = !on
                         let alert = NSAlert()
-                        alert.messageText = "macOS no aceptó el ítem de inicio"
-                        alert.informativeText = "Suele pasar cuando la app no está en /Aplicaciones. "
-                            + "Muévela ahí y vuelve a intentarlo."
+                        alert.messageText = L.t("macOS did not accept the login item")
+                        alert.informativeText = L.t("It usually happens when the app is not in "
+                                                    + "/Applications. Move it there and try again.")
                         alert.alertStyle = .warning
                         alert.runModal()
                     }
@@ -105,35 +106,36 @@ struct SettingsView: View {
     private var history: some View {
         Form {
             HStack {
-                Text("Máximo de recortes")
+                Text("Maximum clips")
                 Slider(value: $prefs.maxItems, in: 10...300, step: 5)
-                Text("\(Int(prefs.maxItems))").monospacedDigit().frame(width: 40, alignment: .trailing)
+                Text(verbatim: "\(Int(prefs.maxItems))")
+                    .monospacedDigit().frame(width: 40, alignment: .trailing)
             }
-            Text("Windows guarda 25. Lo anclado no cuenta contra el tope y nunca se descarta.")
+            Text("Windows keeps 25. Pinned clips do not count toward the cap and are never dropped.")
                 .font(.caption).foregroundStyle(.secondary)
 
             Section {
-                Toggle("Conservar todo el historial al reiniciar", isOn: $prefs.keepHistoryOnRestart)
-                Text("Apagado se comporta como Windows: al reiniciar solo sobrevive lo anclado.")
+                Toggle("Keep the whole history on restart", isOn: $prefs.keepHistoryOnRestart)
+                Text("Turned off it behaves like Windows: only pinned clips survive a restart.")
                     .font(.caption).foregroundStyle(.secondary)
-                Toggle("Guardar también imágenes", isOn: $prefs.keepImages)
-                Toggle("Ignorar gestores de contraseñas y copias marcadas como privadas",
+                Toggle("Save images too", isOn: $prefs.keepImages)
+                Toggle("Ignore password managers and clips marked as private",
                        isOn: $prefs.ignoreConfidential)
             }
 
             Section {
                 HStack {
                     Spacer()
-                    Button("Borrar todo el historial", role: .destructive) {
+                    Button("Delete the whole history", role: .destructive) {
                         Task { @MainActor in
                             // Se lleva también lo anclado y las imágenes del disco: conviene preguntar.
                             let alert = NSAlert()
-                            alert.messageText = "¿Borrar todo el historial?"
-                            alert.informativeText = "Se eliminan todos los recortes, incluidos los anclados "
-                                + "y las imágenes guardadas. No se puede deshacer."
+                            alert.messageText = L.t("Delete the whole history?")
+                            alert.informativeText = L.t("Every clip is removed, including pinned ones "
+                                                        + "and the saved images. This cannot be undone.")
                             alert.alertStyle = .warning
-                            alert.addButton(withTitle: "Borrar todo")
-                            alert.addButton(withTitle: "Cancelar")
+                            alert.addButton(withTitle: L.t("Delete the whole history"))
+                            alert.addButton(withTitle: L.t("Cancel"))
                             if alert.runModal() == .alertFirstButtonReturn {
                                 ClipboardStore.shared.purge()
                             }
@@ -146,37 +148,65 @@ struct SettingsView: View {
     }
 
     private var about: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             Image(systemName: "doc.on.clipboard.fill")
                 .font(.system(size: 38, weight: .light))
                 .foregroundStyle(.tint)
-            Text("Portapapeles").font(.title2.weight(.semibold))
-            Text("Versión \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
+            Text("Clipboard").font(.title2.weight(.semibold))
+            Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
-            Text("El historial del portapapeles de Windows (⊞+V), para el Mac. Todo se queda en este equipo.")
+            Text("The Windows clipboard history (⊞+V), for the Mac. Everything stays on this computer.")
+                .font(.system(size: 12))
                 .multilineTextAlignment(.center).foregroundStyle(.secondary)
                 .padding(.horizontal, 40)
-            VStack(alignment: .leading, spacing: 3) {
-                shortcut("\(Prefs.shared.hotKey.display)", "abrir o cerrar el historial")
-                shortcut("↑ ↓ / ⇥", "moverse por la lista")
-                shortcut("⏎", "pegar el recorte elegido")
-                shortcut("⌘1 – ⌘9", "pegar directo el enésimo")
-                shortcut("⌘P", "anclar o desanclar")
-                shortcut("⌘⌫", "eliminar del historial")
-                shortcut("⎋", "cerrar")
+
+            VStack(alignment: .leading, spacing: 7) {
+                shortcut(Prefs.shared.hotKey.display, "open or close the history")
+                shortcut("↑ ↓ ⇥", "move through the list")
+                shortcut("⏎", "paste the selected clip")
+                shortcut("⌘1 – ⌘9", "paste the nth one directly")
+                shortcut("⌘P", "pin or unpin")
+                shortcut("⌘⌫", "remove from the history")
+                shortcut("⎋", "close")
             }
-            .font(.caption)
-            .padding(.top, 4)
+            .padding(.top, 6)
+
             Spacer()
+
+            VStack(spacing: 3) {
+                Text("Made by \("j0KZ")")
+                    .font(.system(size: 12, weight: .medium))
+                Link("github.com/j0KZ/Simple_Clipboard",
+                     destination: URL(string: "https://github.com/j0KZ/Simple_Clipboard")!)
+                    .font(.system(size: 11))
+                Text(verbatim: "MIT")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.bottom, 18)
         }
-        .padding(.top, 22)
+        .padding(.top, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func shortcut(_ keys: String, _ what: String) -> some View {
-        HStack(spacing: 6) {
-            Text(keys).monospaced().frame(width: 76, alignment: .trailing)
-            Text(what).foregroundStyle(.secondary)
+    /// La tecla en una "tapa" con fondo, para que se lea. Antes iba en `.caption` (10 pt)
+    /// gris sobre gris y no había manera.
+    private func shortcut(_ keys: String, _ what: LocalizedStringKey) -> some View {
+        HStack(spacing: 10) {
+            Text(keys)
+                .font(.system(size: 13, weight: .semibold))
+                .frame(minWidth: 76, alignment: .center)
+                .padding(.vertical, 3)
+                .padding(.horizontal, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color.primary.opacity(0.09))
+                )
+            Text(what)
+                .font(.system(size: 12.5))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
         }
     }
 }
@@ -194,7 +224,9 @@ struct HotKeyRecorder: View {
         Button {
             recording.toggle()
         } label: {
-            Text(recording ? "Presiona la combinación…" : HotKeySpec(keyCode: keyCode, modifiers: modifiers).display)
+            Text(recording
+                 ? L.t("Press the combination…")
+                 : HotKeySpec(keyCode: keyCode, modifiers: modifiers).display)
                 .font(.system(size: 13, weight: .medium))
                 .frame(minWidth: 130)
                 .padding(.vertical, 2)
@@ -203,7 +235,7 @@ struct HotKeyRecorder: View {
         .tint(recording ? .accentColor : nil)
         .onChange(of: recording) { _, on in on ? start() : stop() }
         .onDisappear { stop() }
-        .help("Haz clic y presiona la combinación que quieras")
+        .help("Click and press whatever combination you want")
     }
 
     private func start() {
@@ -254,7 +286,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     convenience init(onClose: @escaping () -> Void) {
         let hosting = NSHostingController(rootView: SettingsView())
         let window = NSWindow(contentViewController: hosting)
-        window.title = "Preferencias de Portapapeles"
+        window.title = L.t("Clipboard Settings")
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
         window.center()

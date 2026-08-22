@@ -1,0 +1,82 @@
+/* Español. Las claves son el texto en inglés del código. */
+
+/* --- Panel --- */
+"Clipboard" = "Portapapeles";
+"More options" = "Más opciones";
+"Search" = "Buscar";
+"Clear all" = "Borrar todo";
+"Reset position" = "Restablecer posición";
+"Settings…" = "Preferencias…";
+"Quit Clipboard" = "Salir de Portapapeles";
+"Copy something to see it here" = "Copia algo para verlo aquí";
+"Text, images and files will show up in this list" = "Texto, imágenes y archivos van a aparecer en esta lista";
+"No results" = "Sin resultados";
+"and %lld more" = "y %lld más";
+"Image" = "Imagen";
+"Image · %@" = "Imagen · %@";
+
+/* --- Menú de la tarjeta --- */
+"Paste" = "Pegar";
+"Copy only" = "Solo copiar";
+"Open link" = "Abrir enlace";
+"Pin" = "Anclar";
+"Unpin" = "Desanclar";
+"Delete" = "Eliminar";
+
+/* --- Barra de menús --- */
+"Open history" = "Abrir el historial";
+"Shortcut: %@" = "Atajo: %@";
+
+/* --- Preferencias: General --- */
+"General" = "General";
+"Shortcut" = "Atajo";
+"Open the history" = "Abrir el historial";
+"It is the Windows ⊞+V. Whatever you pick stays on the clipboard, so a normal ⌘V pastes it again." = "Es el ⊞+V de Windows. Lo que elijas queda en el portapapeles, así que el ⌘V normal lo vuelve a pegar.";
+"The system rejected this combination: another app already has it. Pick a different one." = "El sistema rechazó esta combinación: otra app ya la tiene. Elige otra.";
+"Where the panel appears" = "Dónde aparece el panel";
+"Position" = "Posición";
+"Where the text cursor is" = "Donde está el cursor de texto";
+"Where the pointer is" = "Donde está el puntero";
+"Center of the screen" = "Centro de la pantalla";
+"Pasting" = "Pegado";
+"Paste automatically when picking" = "Pegar automáticamente al elegir";
+"Accessibility granted: it pastes on its own and opens next to the cursor." = "Accesibilidad concedida: pega solo y se abre junto al cursor.";
+"Without Accessibility it only copies, and the panel opens next to the pointer." = "Sin Accesibilidad solo copia, y el panel se abre junto al puntero.";
+"Grant…" = "Conceder…";
+"Already granted but still orange? That entry in the list is usually for another copy of the app: macOS shows only the name, not the path. Remove it with «−», add this one again and restart the app." = "¿Ya lo concediste y sigue en naranja? Esa entrada de la lista suele ser de otra copia de la app: macOS muestra solo el nombre y no la ruta. Quítala con «−», vuelve a agregar esta y reinicia la app.";
+"Open at login" = "Abrir al iniciar sesión";
+"macOS did not accept the login item" = "macOS no aceptó el ítem de inicio";
+"It usually happens when the app is not in /Applications. Move it there and try again." = "Suele pasar cuando la app no está en /Aplicaciones. Muévela ahí y vuelve a intentarlo.";
+
+/* --- Preferencias: Historial --- */
+"History" = "Historial";
+"Maximum clips" = "Máximo de recortes";
+"Windows keeps 25. Pinned clips do not count toward the cap and are never dropped." = "Windows guarda 25. Lo anclado no cuenta contra el tope y nunca se descarta.";
+"Keep the whole history on restart" = "Conservar todo el historial al reiniciar";
+"Turned off it behaves like Windows: only pinned clips survive a restart." = "Apagado se comporta como Windows: al reiniciar solo sobrevive lo anclado.";
+"Save images too" = "Guardar también imágenes";
+"Ignore password managers and clips marked as private" = "Ignorar gestores de contraseñas y copias marcadas como privadas";
+"Delete the whole history" = "Borrar todo el historial";
+"Delete the whole history?" = "¿Borrar todo el historial?";
+"Every clip is removed, including pinned ones and the saved images. This cannot be undone." = "Se eliminan todos los recortes, incluidos los anclados y las imágenes guardadas. No se puede deshacer.";
+"Cancel" = "Cancelar";
+
+/* --- Preferencias: Acerca de --- */
+"About" = "Acerca de";
+"Version %@" = "Versión %@";
+"The Windows clipboard history (⊞+V), for the Mac. Everything stays on this computer." = "El historial del portapapeles de Windows (⊞+V), para el Mac. Todo se queda en este equipo.";
+"Made by %@" = "Hecho por %@";
+"open or close the history" = "abrir o cerrar el historial";
+"move through the list" = "moverse por la lista";
+"paste the selected clip" = "pegar el recorte elegido";
+"paste the nth one directly" = "pegar directo el enésimo";
+"pin or unpin" = "anclar o desanclar";
+"remove from the history" = "eliminar del historial";
+"close" = "cerrar";
+"Clipboard Settings" = "Preferencias de Portapapeles";
+
+/* --- Capturador de atajos --- */
+"Press the combination…" = "Presiona la combinación…";
+"Click and press whatever combination you want" = "Haz clic y presiona la combinación que quieras";
+"Space" = "Espacio";
+"Key %lld" = "Tecla %lld";

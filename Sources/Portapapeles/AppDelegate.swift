@@ -42,23 +42,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.image = NSImage(systemSymbolName: "doc.on.clipboard",
-                                     accessibilityDescription: "Portapapeles")
+                                     accessibilityDescription: L.t("Clipboard"))
         item.button?.image?.isTemplate = true
 
         let menu = NSMenu()
-        let open = NSMenuItem(title: "Abrir el historial", action: #selector(openPanel), keyEquivalent: "")
+        let open = NSMenuItem(title: L.t("Open history"), action: #selector(openPanel), keyEquivalent: "")
         open.target = self
         menu.addItem(open)
         menu.addItem(.separator())
-        let clear = NSMenuItem(title: "Borrar todo", action: #selector(clearAll), keyEquivalent: "")
+        let clear = NSMenuItem(title: L.t("Clear all"), action: #selector(clearAll), keyEquivalent: "")
         clear.target = self
         menu.addItem(clear)
         menu.addItem(.separator())
-        let prefs = NSMenuItem(title: "Preferencias…", action: #selector(showSettingsAction), keyEquivalent: ",")
+        let prefs = NSMenuItem(title: L.t("Settings…"), action: #selector(showSettingsAction), keyEquivalent: ",")
         prefs.target = self
         menu.addItem(prefs)
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Salir de Portapapeles", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: L.t("Quit Clipboard"), action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
         item.menu = menu
@@ -68,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Muestra el atajo actual junto a "Abrir el historial".
     func updateShortcutHint() {
-        statusItem?.menu?.items.first?.toolTip = "Atajo: \(Prefs.shared.hotKey.display)"
+        statusItem?.menu?.items.first?.toolTip = String(format: L.t("Shortcut: %@"), Prefs.shared.hotKey.display)
     }
 
     @objc private func openPanel() {

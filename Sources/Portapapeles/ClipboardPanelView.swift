@@ -37,19 +37,19 @@ struct ClipboardPanelView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.tint)
                 .allowsHitTesting(false)
-            Text("Portapapeles")
+            Text("Clipboard")
                 .font(.system(size: 12, weight: .semibold))
                 .allowsHitTesting(false)
             Spacer(minLength: 0)
             Menu {
-                Button("Borrar todo") { withAnimation { store.clear() } }
+                Button("Clear all") { withAnimation { store.clear() } }
                     .disabled(store.items.allSatisfy { $0.pinned })
                 if prefs.hasPanelPosition {
-                    Button("Restablecer posición") { prefs.forgetPanelPosition() }
+                    Button("Reset position") { prefs.forgetPanelPosition() }
                 }
                 Divider()
-                Button("Preferencias…") { AppDelegate.shared?.showSettings() }
-                Button("Salir de Portapapeles") { NSApp.terminate(nil) }
+                Button("Settings…") { AppDelegate.shared?.showSettings() }
+                Button("Quit Clipboard") { NSApp.terminate(nil) }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 11, weight: .semibold))
@@ -57,7 +57,7 @@ struct ClipboardPanelView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .frame(width: 20)
-            .help("Más opciones")
+            .help("More options")
         }
         .padding(.horizontal, 10)
         .padding(.top, 8)
@@ -71,7 +71,7 @@ struct ClipboardPanelView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-            TextField("Buscar", text: $store.query)
+            TextField("Search", text: $store.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 11.5))
                 .focused($searchFocused)
@@ -113,14 +113,19 @@ struct ClipboardPanelView: View {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                             ClipCard(item: item, selected: index == store.selection)
                                 .id(item.id)
-                                .onHover { if $0, PanelController.shared.hoverCanSelect { store.selection = index } }
+                                .onHover {
+                                    guard $0, PanelController.shared.hoverCanSelect else { return }
+                                    store.selectionCameFromKeyboard = false
+                                    store.selection = index
+                                }
                                 .onTapGesture { store.use(item) }
                         }
                     }
                     .padding(8)
                 }
                 .onChange(of: store.selection) { _, _ in
-                    guard let id = store.selectedItem?.id else { return }
+                    // Solo el teclado desplaza: ver `selectionCameFromKeyboard`.
+                    guard store.selectionCameFromKeyboard, let id = store.selectedItem?.id else { return }
                     withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(id, anchor: .center) }
                 }
             }
@@ -132,11 +137,12 @@ struct ClipboardPanelView: View {
             Image(systemName: store.query.isEmpty ? "doc.on.clipboard" : "magnifyingglass")
                 .font(.system(size: 26, weight: .thin))
                 .foregroundStyle(.tertiary)
-            Text(store.query.isEmpty ? "Copia algo para verlo aquí" : "Sin resultados")
+            Text(store.query.isEmpty ? LocalizedStringKey("Copy something to see it here")
+                                         : LocalizedStringKey("No results"))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
             if store.query.isEmpty {
-                Text("Texto, imágenes y archivos van a aparecer en esta lista")
+                Text("Text, images and files will show up in this list")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
@@ -190,15 +196,15 @@ struct ClipCard: View {
         .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .onHover { hovering = $0 }
         .contextMenu {
-            Button("Pegar") { store.use(item) }
-            Button("Solo copiar") { store.writeToPasteboard(item) }
+            Button("Paste") { store.use(item) }
+            Button("Copy only") { store.writeToPasteboard(item) }
             if item.isLink, let url = URL(string: item.text.trimmingCharacters(in: .whitespacesAndNewlines)) {
-                Button("Abrir enlace") { NSWorkspace.shared.open(url) }
+                Button("Open link") { NSWorkspace.shared.open(url) }
             }
             Divider()
-            Button(item.pinned ? "Desanclar" : "Anclar") { store.togglePin(item) }
-            Button("Eliminar", role: .destructive) { store.remove(item) }
-            Button("Borrar todo") { store.clear() }
+            Button(item.pinned ? LocalizedStringKey("Unpin") : LocalizedStringKey("Pin")) { store.togglePin(item) }
+            Button("Delete", role: .destructive) { store.remove(item) }
+            Button("Clear all") { store.clear() }
         }
         .help(item.oneLine)
         .animation(.easeOut(duration: 0.1), value: hovering)
@@ -235,7 +241,7 @@ struct ClipCard: View {
                     }
                 }
                 if item.urls.count > 3 {
-                    Text("y \(item.urls.count - 3) más")
+                    Text("and \(item.urls.count - 3) more")
                         .font(.system(size: 10)).foregroundStyle(.secondary)
                 }
             }
@@ -251,14 +257,16 @@ struct ClipCard: View {
 
     @ViewBuilder
     private var controls: some View {
+        // Ancho fijo pase lo que pase: si los botones aparecieran y desaparecieran con el
+        // hover, el texto de la tarjeta se recolocaría y la fila daría un salto al pasar.
         HStack(spacing: 2) {
             // Con el puntero encima manda el botón de anclar; sin él, el chincheta de estado.
             // Mostrar los dos a la vez ponía dos chinchetas seguidas en las tarjetas ancladas.
             if hovering || selected {
-                iconButton(item.pinned ? "pin.slash" : "pin", help: item.pinned ? "Desanclar" : "Anclar") {
+                iconButton(item.pinned ? "pin.slash" : "pin", help: item.pinned ? LocalizedStringKey("Unpin") : LocalizedStringKey("Pin")) {
                     withAnimation(.easeOut(duration: 0.12)) { store.togglePin(item) }
                 }
-                iconButton("xmark", help: "Eliminar") {
+                iconButton("xmark", help: "Delete") {
                     withAnimation(.easeOut(duration: 0.12)) { store.remove(item) }
                 }
             } else if item.pinned {
@@ -268,9 +276,10 @@ struct ClipCard: View {
                     .frame(width: 18, height: 18)
             }
         }
+        .frame(width: 38, alignment: .trailing)
     }
 
-    private func iconButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
+    private func iconButton(_ symbol: String, help: LocalizedStringKey, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 9, weight: .semibold))

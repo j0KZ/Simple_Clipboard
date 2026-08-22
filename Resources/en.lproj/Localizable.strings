@@ -1,0 +1,83 @@
+/* Idioma base. Las claves son el propio texto en inglés; este archivo existe para que el
+   bundle anuncie "en" como localización y para poder retocar la redacción sin tocar código. */
+
+/* --- Panel --- */
+"Clipboard" = "Clipboard";
+"More options" = "More options";
+"Search" = "Search";
+"Clear all" = "Clear all";
+"Reset position" = "Reset position";
+"Settings…" = "Settings…";
+"Quit Clipboard" = "Quit Clipboard";
+"Copy something to see it here" = "Copy something to see it here";
+"Text, images and files will show up in this list" = "Text, images and files will show up in this list";
+"No results" = "No results";
+"and %lld more" = "and %lld more";
+"Image" = "Image";
+"Image · %@" = "Image · %@";
+
+/* --- Menú de la tarjeta --- */
+"Paste" = "Paste";
+"Copy only" = "Copy only";
+"Open link" = "Open link";
+"Pin" = "Pin";
+"Unpin" = "Unpin";
+"Delete" = "Delete";
+
+/* --- Barra de menús --- */
+"Open history" = "Open history";
+"Shortcut: %@" = "Shortcut: %@";
+
+/* --- Preferencias: General --- */
+"General" = "General";
+"Shortcut" = "Shortcut";
+"Open the history" = "Open the history";
+"It is the Windows ⊞+V. Whatever you pick stays on the clipboard, so a normal ⌘V pastes it again." = "It is the Windows ⊞+V. Whatever you pick stays on the clipboard, so a normal ⌘V pastes it again.";
+"The system rejected this combination: another app already has it. Pick a different one." = "The system rejected this combination: another app already has it. Pick a different one.";
+"Where the panel appears" = "Where the panel appears";
+"Position" = "Position";
+"Where the text cursor is" = "Where the text cursor is";
+"Where the pointer is" = "Where the pointer is";
+"Center of the screen" = "Center of the screen";
+"Pasting" = "Pasting";
+"Paste automatically when picking" = "Paste automatically when picking";
+"Accessibility granted: it pastes on its own and opens next to the cursor." = "Accessibility granted: it pastes on its own and opens next to the cursor.";
+"Without Accessibility it only copies, and the panel opens next to the pointer." = "Without Accessibility it only copies, and the panel opens next to the pointer.";
+"Grant…" = "Grant…";
+"Already granted but still orange? That entry in the list is usually for another copy of the app: macOS shows only the name, not the path. Remove it with «−», add this one again and restart the app." = "Already granted but still orange? That entry in the list is usually for another copy of the app: macOS shows only the name, not the path. Remove it with «−», add this one again and restart the app.";
+"Open at login" = "Open at login";
+"macOS did not accept the login item" = "macOS did not accept the login item";
+"It usually happens when the app is not in /Applications. Move it there and try again." = "It usually happens when the app is not in /Applications. Move it there and try again.";
+
+/* --- Preferencias: Historial --- */
+"History" = "History";
+"Maximum clips" = "Maximum clips";
+"Windows keeps 25. Pinned clips do not count toward the cap and are never dropped." = "Windows keeps 25. Pinned clips do not count toward the cap and are never dropped.";
+"Keep the whole history on restart" = "Keep the whole history on restart";
+"Turned off it behaves like Windows: only pinned clips survive a restart." = "Turned off it behaves like Windows: only pinned clips survive a restart.";
+"Save images too" = "Save images too";
+"Ignore password managers and clips marked as private" = "Ignore password managers and clips marked as private";
+"Delete the whole history" = "Delete the whole history";
+"Delete the whole history?" = "Delete the whole history?";
+"Every clip is removed, including pinned ones and the saved images. This cannot be undone." = "Every clip is removed, including pinned ones and the saved images. This cannot be undone.";
+"Cancel" = "Cancel";
+
+/* --- Preferencias: Acerca de --- */
+"About" = "About";
+"Version %@" = "Version %@";
+"The Windows clipboard history (⊞+V), for the Mac. Everything stays on this computer." = "The Windows clipboard history (⊞+V), for the Mac. Everything stays on this computer.";
+"Made by %@" = "Made by %@";
+"open or close the history" = "open or close the history";
+"move through the list" = "move through the list";
+"paste the selected clip" = "paste the selected clip";
+"paste the nth one directly" = "paste the nth one directly";
+"pin or unpin" = "pin or unpin";
+"remove from the history" = "remove from the history";
+"close" = "close";
+"Clipboard Settings" = "Clipboard Settings";
+
+/* --- Capturador de atajos --- */
+"Press the combination…" = "Press the combination…";
+"Click and press whatever combination you want" = "Click and press whatever combination you want";
+"Space" = "Space";
+"Key %lld" = "Key %lld";

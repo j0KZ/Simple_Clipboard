@@ -73,7 +73,7 @@ struct ClipItem: Identifiable, Codable, Equatable {
         case .text: return String(text.prefix(Self.previewLimit))
                         .trimmingCharacters(in: .whitespacesAndNewlines)
         case .files: return urls.map { $0.lastPathComponent }.joined(separator: "\n")
-        case .image: return text.isEmpty ? "Imagen" : "Imagen · \(text)"
+        case .image: return text.isEmpty ? L.t("Image") : String(format: L.t("Image · %@"), text)
         }
     }
 
@@ -117,7 +117,7 @@ struct ClipItem: Identifiable, Codable, Equatable {
 
     private static let relative: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
-        f.locale = Locale(identifier: "es")
+        f.locale = L.locale
         f.unitsStyle = .short
         return f
     }()
@@ -131,6 +131,10 @@ final class ClipboardStore: ObservableObject {
     @Published private(set) var items: [ClipItem] = []
     @Published var query: String = ""
     @Published var selection: Int = 0
+    /// Solo el teclado desplaza la lista. Si el hover también lo hiciera, al centrar la
+    /// tarjeta que está bajo el puntero el contenido se movería solo, otra tarjeta quedaría
+    /// debajo, y así: la lista se te escapa mientras bajas el ratón.
+    @Published var selectionCameFromKeyboard = false
     /// Cambia cada vez que se abre el panel: la vista lo usa para reenfocar el buscador.
     @Published var presentationID = UUID()
 
@@ -320,6 +324,7 @@ final class ClipboardStore: ObservableObject {
     func move(by delta: Int) {
         let count = visibleItems.count
         guard count > 0 else { return }
+        selectionCameFromKeyboard = true
         selection = (selection + delta + count) % count
     }
 

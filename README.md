@@ -52,6 +52,12 @@ no existe.
 
 Escribir filtra: el buscador está enfocado apenas se abre el panel.
 
+## Idioma
+
+Español e inglés. Sigue al sistema: si tu Mac está en español la app sale en español, y en
+cualquier otro caso en inglés. No hay ajuste que tocar. Para forzar uno sin cambiar el
+sistema entero, en Ajustes → General → Idioma y región → Apps.
+
 ## Qué guarda
 
 - **Texto**, **imágenes** y **archivos** copiados.

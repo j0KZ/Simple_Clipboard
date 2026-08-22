@@ -31,11 +31,11 @@ struct HotKeySpec: Equatable {
 
     static func name(for keyCode: Int) -> String {
         if let special = specialNames[keyCode] { return special }
-        return literalNames[keyCode] ?? "Tecla \(keyCode)"
+        return literalNames[keyCode] ?? String(format: L.t("Key %lld"), keyCode)
     }
 
     private static let specialNames: [Int: String] = [
-        kVK_Space: "Espacio", kVK_Return: "↩", kVK_Tab: "⇥", kVK_Escape: "⎋",
+        kVK_Space: L.t("Space"), kVK_Return: "↩", kVK_Tab: "⇥", kVK_Escape: "⎋",
         kVK_Delete: "⌫", kVK_ForwardDelete: "⌦", kVK_LeftArrow: "←", kVK_RightArrow: "→",
         kVK_UpArrow: "↑", kVK_DownArrow: "↓", kVK_Home: "↖", kVK_End: "↘",
         kVK_PageUp: "⇞", kVK_PageDown: "⇟",
