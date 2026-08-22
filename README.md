@@ -11,9 +11,16 @@ normal lo vuelve a pegar — igual que en Windows.
 
 ```bash
 brew tap j0kz/clipboard https://github.com/j0KZ/Simple_Clipboard
+brew trust --formula j0kz/clipboard/portapapeles
 brew install portapapeles
 portapapeles
 ```
+
+El `brew trust` no es opcional: desde hace poco Homebrew se niega a cargar fórmulas de taps
+que no son oficiales hasta que dices que confías en ellas, y falla con
+*«Refusing to load formula … from untrusted tap»*. Es razonable — una fórmula ejecuta código
+en tu equipo al compilar—, así que mira antes [Formula/portapapeles.rb](Formula/portapapeles.rb):
+son treinta líneas y lo único que hace es correr `./build.sh`.
 
 Para tenerla en Launchpad y Spotlight:
 
