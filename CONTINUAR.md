@@ -62,6 +62,7 @@ Un solo target SwiftPM, sin dependencias. `LSUIElement`, vive en la barra de men
 | `tools/TogglePanel.swift` | abre el panel por notificación distribuida (solo con `CLIP_DEBUG=1`) |
 | `tools/ToggleSettings.swift` | lo mismo para Preferencias |
 | `Formula/portapapeles.rb` | fórmula de Homebrew; compila desde el fuente en el equipo del usuario |
+| `README.md` / `README.es.md` | inglés y español; **hay que actualizar los dos a la vez** |
 | `Resources/*.lproj/` | traducciones (`en` e `es`); `build.sh` las copia al bundle |
 
 ### Detalles que importan
@@ -182,6 +183,6 @@ defaults delete com.j0kz.Portapapeles
 ## Prompt de arranque para el chat nuevo
 
 > Este repo es Simple Clipboard, una app nativa de macOS que replica el historial del
-> portapapeles de Windows (⊞+V). Lee `CONTINUAR.md` y `README.md` antes de tocar nada.
+> portapapeles de Windows (⊞+V). Lee `CONTINUAR.md` y `README.es.md` antes de tocar nada.
 > Compila con `./build.sh --run`. Lo primero que quiero es abrir el panel con ⌥⌘V y
 > ajustar la UI, porque nunca se vio renderizada.

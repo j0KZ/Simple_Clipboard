@@ -1,17 +1,19 @@
 # Simple Clipboard (Portapapeles)
 
-El historial del portapapeles de Windows (`⊞`+`V`), para macOS. Nativo, sin dependencias,
-100 % local: nada sale de tu equipo.
+*[Léeme en español](README.es.md)*
 
-Aprietas el atajo, se abre un panel chico junto al cursor de texto con lo último que copiaste,
-eliges uno y se pega. Lo que elegiste queda en el portapapeles del sistema, así que el `⌘V`
-normal lo vuelve a pegar — igual que en Windows.
+The Windows clipboard history (`⊞`+`V`), for macOS. Native, no dependencies,
+100 % local: nothing leaves your machine.
 
-## Instalar
+You press the shortcut, a small panel opens next to the text cursor with whatever you copied
+last, you pick one and it gets pasted. What you picked stays on the system clipboard, so a
+normal `⌘V` pastes it again — same as on Windows.
 
-Requiere **macOS 14 (Sonoma) o posterior**, en Apple Silicon o Intel — se compila en tu
-equipo, así que sale nativa para el procesador que tengas. Homebrew ya exige las Command
-Line Tools de Xcode, que es todo lo que hace falta para compilarla.
+## Install
+
+Requires **macOS 14 (Sonoma) or later**, on Apple Silicon or Intel — it is compiled on your
+machine, so you get a native build for whatever processor you have. Homebrew already requires
+Xcode's Command Line Tools, which is all it takes to build it.
 
 ```bash
 brew tap j0kz/clipboard https://github.com/j0KZ/Simple_Clipboard
@@ -20,157 +22,167 @@ brew install portapapeles
 portapapeles
 ```
 
-El `brew trust` no es opcional: desde hace poco Homebrew se niega a cargar fórmulas de taps
-que no son oficiales hasta que dices que confías en ellas, y falla con
-*«Refusing to load formula … from untrusted tap»*. Es razonable — una fórmula ejecuta código
-en tu equipo al compilar—, así que mira antes [Formula/portapapeles.rb](Formula/portapapeles.rb):
-son treinta líneas y lo único que hace es correr `./build.sh`.
+The `brew trust` step is not optional: Homebrew recently started refusing to load formulae
+from non-official taps until you say you trust them, and fails with
+*"Refusing to load formula … from untrusted tap"*. That is reasonable — a formula runs code
+on your machine when it builds — so read [Formula/portapapeles.rb](Formula/portapapeles.rb)
+first: it is thirty lines and all it does is run `./build.sh`.
 
-Para tenerla en Launchpad y Spotlight:
+To get it in Launchpad and Spotlight:
 
 ```bash
 ln -sfn "$(brew --prefix)/opt/portapapeles/Portapapeles.app" /Applications/Portapapeles.app
 ```
 
-Es una **fórmula** y no un *cask* a propósito: se compila en tu equipo, con las Command Line
-Tools que Homebrew ya exige. Tarda menos de un minuto. Una app precompilada bajada de
-internet llegaría con el atributo de cuarentena y, al no estar notarizada —hace falta cuenta
-de desarrollador de pago—, Gatekeeper la rechazaría. Compilándola localmente ese problema
-no existe.
+It is a **formula** and not a *cask* on purpose. A prebuilt app downloaded from the internet
+arrives with the quarantine attribute and, since it is not notarized — that needs a paid
+developer account — Gatekeeper would reject it. Building it locally sidesteps that entirely.
 
-## Atajos
+## Shortcuts
 
-| Tecla | Qué hace |
+| Key | What it does |
 |---|---|
-| `⌥⌘V` | abrir / cerrar el historial (configurable) |
-| `↑` `↓` `⇥` | moverse por la lista |
-| `⏎` | pegar el recorte elegido |
-| `⌘1` … `⌘9` | pegar directo el enésimo |
-| `⌘P` | anclar / desanclar |
-| `⌘⌫` | eliminar del historial |
-| `⎋` | cerrar (o limpiar la búsqueda) |
+| `⌥⌘V` | open / close the history (configurable) |
+| `↑` `↓` `⇥` | move through the list |
+| `⏎` | paste the selected clip |
+| `⌘1` … `⌘9` | paste the nth one directly |
+| `⌘P` | pin / unpin |
+| `⌘⌫` | remove from the history |
+| `⎋` | close (or clear the search) |
 
-Escribir filtra: el buscador está enfocado apenas se abre el panel.
+Typing filters: the search field is focused the moment the panel opens.
 
-## Idioma
+## Language
 
-Español e inglés. Sigue al sistema: si tu Mac está en español la app sale en español, y en
-cualquier otro caso en inglés. No hay ajuste que tocar. Para forzar uno sin cambiar el
-sistema entero, en Ajustes → General → Idioma y región → Apps.
+English and Spanish. It follows the system: if your Mac is set to Spanish the app shows up in
+Spanish, and in any other case in English. There is no setting to touch. To force one without
+changing the whole system, use Settings → General → Language & Region → Applications.
 
-## Qué guarda
+## What it keeps
 
-- **Texto**, **imágenes** y **archivos** copiados.
-- Un recorte de texto de más de 256 KB se queda solo en memoria y no va al `history.json`,
-  para no inflarlo. Si lo anclas se guarda igual.
-- De dónde salió cada recorte y hace cuánto.
-- Anclados arriba; no cuentan contra el tope y nunca se descartan.
-- Ignora 1Password, Bitwarden, KeePass, Contraseñas de Apple y todo lo marcado
-  como `org.nspasteboard.ConcealedType` / `TransientType` / `AutoGeneratedType`.
+- **Text**, **images** and **files** you copy.
+- A text clip over 256 KB stays in memory only and never reaches `history.json`, so the file
+  does not balloon. Pin it and it gets saved anyway.
+- Where each clip came from, and how long ago.
+- Pinned clips on top; they do not count toward the cap and are never dropped.
+- Ignores 1Password, Bitwarden, KeePass, Keeper, Apple Passwords and anything marked as
+  `org.nspasteboard.ConcealedType` / `TransientType` / `AutoGeneratedType`.
 
-Todo vive en `~/Library/Application Support/Portapapeles/`, con la carpeta en `0700` y el
-JSON en `0600` — sólo tu cuenta puede leerlos. **No están cifrados**: cualquier proceso que
-corra como tú sí puede abrirlos.
+Dictation apps are a deliberate exception. Wispr Flow marks what it dictates as
+`ConcealedType` — the same flag password managers use — but it also restores your previous
+clipboard about half a second later. That restore is the giveaway: a private clip only makes
+it into the history if the clipboard goes back to *exactly* what it held before, within
+1.5 s. A password manager never does that, so its clips stay out.
+
+Everything lives in `~/Library/Application Support/Portapapeles/`, with the folder at `0700`
+and the JSON at `0600` — only your account can read them. They are **not encrypted**: any
+process running as you can open them.
 
 ```
-history.json      lista de recortes, JSON compacto
-images/           un PNG por imagen copiada
+history.json      list of clips, compact JSON
+images/           one PNG per copied image
 ```
 
-El JSON usa claves de una letra, fechas en segundos epoch y omite campos vacíos:
-3 recortes de texto corto pesan unos 260 bytes.
+The JSON uses one-letter keys, epoch seconds for dates and omits empty fields:
+3 short text clips weigh about 260 bytes.
 
 ```json
-[{"g":"7a1f91508f7498e918a17c7a","t":"hola mundo","a":"Safari","d":1787373470,"k":"t"}]
+[{"g":"7a1f91508f7498e918a17c7a","t":"hello world","a":"Safari","d":1787373470,"k":"t"}]
 ```
 
-`g` huella · `t` texto · `m` imagen · `a` app de origen · `d` fecha · `p` anclado · `k` tipo
-(`t` texto, `i` imagen, `f` archivos).
+`g` digest · `t` text · `m` image · `a` source app · `d` date · `p` pinned · `k` kind
+(`t` text, `i` image, `f` files).
 
-## El panel
+## The panel
 
-Chico (300 × 420), con fondo translúcido. **Siempre oscuro**, aunque el sistema esté en
-modo claro: la app fija `darkAqua` y no sigue el tema.
-**Se arrastra desde la cabecera y queda donde lo dejes** — como el de Windows. Para volver
-a que aparezca junto al cursor: menú `⋯` → *Restablecer posición*.
+Small (300 × 420), with a translucent background. **Always dark**, even when the system is in
+light mode: the app pins `darkAqua` and does not follow the theme.
+**Drag it by the header and it stays where you leave it** — like the Windows one. To get it
+back next to the cursor: `⋯` menu → *Reset position*.
 
-Por omisión aparece donde está el cursor de texto (necesita Accesibilidad); si no,
-junto al puntero. También se puede fijar al centro de la pantalla, en Preferencias.
+By default it appears where the text cursor is (needs Accessibility); otherwise next to the
+pointer. It can also be pinned to the center of the screen, in Settings.
 
-## Publicar una versión
+## Cutting a release
 
-La fórmula apunta a una **etiqueta de Git**, no a la rama. Es el error fácil de cometer:
-si commiteas y no etiquetas, `brew install` sigue compilando la versión vieja. El orden es:
+The formula points at a **Git tag**, not at the branch. That is the easy mistake to make: if
+you commit and do not tag, `brew install` keeps building the old version. The order is:
 
 ```bash
-V=1.1.0
+V=1.1.2
 sed -i '' "s/^VERSION=.*/VERSION=\"$V\"/" build.sh
-git commit -am "Versión $V" && git push origin main
+git commit -am "Version $V" && git push origin main
 git tag "v$V" && git push origin "v$V"
 SHA=$(curl -sL "https://github.com/j0KZ/Simple_Clipboard/archive/refs/tags/v$V.tar.gz" | shasum -a 256 | awk '{print $1}')
 sed -i '' -e "s|/tags/v.*\.tar\.gz|/tags/v$V.tar.gz|" -e "s|sha256 \".*\"|sha256 \"$SHA\"|" Formula/portapapeles.rb
-git commit -am "Fórmula: v$V" && git push origin main
+git commit -am "Formula: v$V" && git push origin main
 ```
 
-El `sha256` se calcula **después** de empujar la etiqueta, porque es el hash de ese tarball.
-El último commit cambia `main` pero no la etiqueta, así que el hash sigue siendo válido.
+The `sha256` is computed **after** pushing the tag, because it is the hash of that tarball.
+The last commit changes `main` but not the tag, so the hash stays valid.
 
-Para probar sin etiquetar: `brew install --HEAD portapapeles`.
+To try it without tagging: `brew install --HEAD portapapeles`.
 
-## Compilar
+## Building
 
-Requiere macOS 14+ y las Command Line Tools de Xcode.
+Requires macOS 14+ and Xcode's Command Line Tools.
 
 ```bash
 ./build.sh --run
 ```
 
-- `./build.sh` sólo compila en `build/Portapapeles.app`
-- `./build.sh --run` compila, mata la instancia corriendo y la lanza
-- `./build.sh --install` además la copia a `/Applications`
+- `./build.sh` only builds into `build/Portapapeles.app`
+- `./build.sh --run` builds, kills the running instance and launches it
+- `./build.sh --install` also copies it to `/Applications`
 
-Con `CLIP_DEBUG=1` la app registra en stderr el atajo y cada recorte capturado, y además
-escucha una notificación distribuida para abrir el panel sin el atajo — útil para revisar
-la UI desde un script, sin permisos de automatización:
+With `CLIP_DEBUG=1` the app logs the shortcut and every captured clip to stderr, and also
+listens for a distributed notification to open the panel without the shortcut — handy for
+inspecting the UI from a script, with no automation permissions:
 
 ```bash
 CLIP_DEBUG=1 ./build/Portapapeles.app/Contents/MacOS/Portapapeles &
 swift tools/TogglePanel.swift
 ```
 
-## Permisos
+Only one instance runs at a time: a second one notices the first and quits. Both would
+register `⌥⌘V` without an error but only one would receive it, which looks like a dead
+shortcut.
 
-**Accesibilidad** (Ajustes → Privacidad y seguridad → Accesibilidad) para dos cosas:
+## Permissions
 
-1. mandar el `⌘V` que pega solo al elegir un recorte;
-2. saber dónde está el cursor de texto para abrir el panel ahí.
+**Accessibility** (Settings → Privacy & Security → Accessibility) for two things:
 
-Sin el permiso la app funciona igual: copia el recorte y das `⌘V` tú, y el panel
-aparece junto al puntero.
+1. sending the `⌘V` that pastes for you when you pick a clip;
+2. knowing where the text cursor is, to open the panel there.
 
-> Recompilar **no** revoca el permiso, aunque `build.sh` firme ad-hoc y el hash cambie:
-> macOS lo asocia a la ruta del bundle. Comprobado forzando un hash nuevo y volviendo a
-> lanzar: `AXIsProcessTrusted()` seguía en `true`.
+Without the permission the app still works: it copies the clip and you press `⌘V` yourself,
+and the panel opens next to the pointer.
+
+It asks for nothing else — no camera, microphone, location, contacts, screen recording or
+Apple Events.
+
+> Rebuilding does **not** revoke the permission, even though `build.sh` signs ad-hoc and the
+> hash changes: macOS ties it to the bundle path. Verified by forcing a new hash and
+> relaunching — `AXIsProcessTrusted()` was still `true`.
 >
-> Lo que sí confunde: si Preferencias lo muestra en naranja **con la casilla marcada en
-> Ajustes**, esa entrada es de otra copia de la app en otra ruta — macOS enseña sólo el
-> nombre. Quítala con «−», vuelve a agregar la que estás usando y reinicia la app.
-> Mover la app de sitio tiene el mismo efecto.
+> What does confuse people: if Settings shows it in orange **while the checkbox is ticked**,
+> that entry belongs to another copy of the app at a different path — macOS only shows the
+> name. Remove it with "−", add the one you are actually using, and restart the app. Moving
+> the app has the same effect.
 
-Si algún día se firma con un certificado propio (o de desarrollador), `build.sh` lo toma
-de la variable `CODESIGN_ID`:
+If you ever sign it with your own certificate (or a developer one), `build.sh` picks it up
+from `CODESIGN_ID`:
 
 ```bash
-CODESIGN_ID="Nombre del certificado" ./build.sh --run
+CODESIGN_ID="Certificate name" ./build.sh --run
 ```
 
-## Licencia
+## License
 
-MIT. Ver [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
-## Alternativas libres
+## Free alternatives
 
-Si prefieres algo ya hecho: [Maccy](https://maccy.app/) (MIT) es lo más cercano en
-funciones, aunque su UI es una lista compacta tipo menú y no un panel de tarjetas
-junto al cursor. Flycut (sólo texto) y CopyQ (multiplataforma) son las otras opciones
-gratis.
+If you would rather use something ready-made: [Maccy](https://maccy.app/) (MIT) is the
+closest in features, though its UI is a compact menu-style list rather than a panel of cards
+next to the cursor. Flycut (text only) and CopyQ (cross-platform) are the other free options.
