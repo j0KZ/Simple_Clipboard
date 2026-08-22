@@ -7,6 +7,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Dos copias a la vez (la de Homebrew y una compilada a mano, por ejemplo) registran
+        // las dos el atajo global sin error, pero solo una lo recibe: el síntoma es que ⌥⌘V
+        // "no hace nada". Carbon no avisa, así que la segunda se retira sola.
+        let mine = ProcessInfo.processInfo.processIdentifier
+        let others = NSRunningApplication
+            .runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+            .filter { $0.processIdentifier != mine }
+        if let otra = others.first {
+            ClipDebug.log("ya hay otra instancia (pid \(otra.processIdentifier)); esta se retira")
+            NSApp.terminate(nil)
+            return
+        }
+
         AppDelegate.shared = self
         NSApp.setActivationPolicy(.accessory)
         // La app es oscura siempre, no sigue el tema del sistema.

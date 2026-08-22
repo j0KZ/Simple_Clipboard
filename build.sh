@@ -31,11 +31,12 @@ for LPROJ in Resources/*.lproj; do
 done
 
 ICONSET="$BUILD_DIR/AppIcon.iconset"
-rm -rf "$ICONSET"; mkdir -p "$ICONSET"
+rm -rf "$ICONSET"
+mkdir -p "$ICONSET"
 swift tools/MakeIcon.swift "$ICONSET" >/dev/null
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns" 2>/dev/null || echo "  (icono omitido)"
 
-cat > "$APP/Contents/Info.plist" <<PLIST
+cat >"$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
