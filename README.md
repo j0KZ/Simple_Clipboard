@@ -9,6 +9,10 @@ normal lo vuelve a pegar — igual que en Windows.
 
 ## Instalar
 
+Requiere **macOS 14 (Sonoma) o posterior**, en Apple Silicon o Intel — se compila en tu
+equipo, así que sale nativa para el procesador que tengas. Homebrew ya exige las Command
+Line Tools de Xcode, que es todo lo que hace falta para compilarla.
+
 ```bash
 brew tap j0kz/clipboard https://github.com/j0KZ/Simple_Clipboard
 brew trust --formula j0kz/clipboard/portapapeles

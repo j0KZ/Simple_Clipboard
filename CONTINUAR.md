@@ -6,7 +6,15 @@ el bloque de "Prompt de arranque" del final.
 ## Estado actual
 
 Funciona y compila limpio (Swift 6.3, `swift build -c release`, sin warnings).
-macOS 26.6, Apple Silicon.
+**Compatibilidad:** el mínimo son macOS 14 (Sonoma) y está declarado en cuatro sitios que
+hay que mantener a la vez — `Package.swift` (`.macOS(.v14)`), el `Info.plist` que genera
+`build.sh` (`LSMinimumSystemVersion`), `Formula/portapapeles.rb` (`depends_on macos:`) y el
+README. No hay ni un `@available` en el código: la garantía la da el compilador, que valida
+todo contra el objetivo 14.0. El binario lleva `minos 14.0` grabado y no arranca por debajo.
+
+Ojo con la diferencia entre *compila* y *probada*: **solo se ha ejecutado en macOS 26.6,
+Apple Silicon.** Nadie la ha corrido en 14, 15 ni en un Intel. Como se distribuye por fuente,
+cada equipo la compila para su propio procesador; el `.app` de `build/` es solo arm64.
 
 **Verificado a mano:** captura de texto / imágenes / archivos, deduplicación, orden,
 anclados, tope de recortes, persistencia en JSON compacto, UTF-8 (acentos, kanji, emoji),
