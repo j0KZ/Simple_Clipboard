@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 APP_NAME="Portapapeles"
 BUNDLE_ID="com.j0kz.Portapapeles"
-VERSION="1.0.0"
+VERSION="1.1.0"
 BUILD_DIR="build"
 APP="$BUILD_DIR/$APP_NAME.app"
 

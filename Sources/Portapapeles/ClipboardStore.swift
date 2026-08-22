@@ -180,10 +180,18 @@ final class ClipboardStore: ObservableObject {
     ]
 
     private static let dir: URL = {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let fm = FileManager.default
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Portapapeles", isDirectory: true)
-        try? FileManager.default.createDirectory(at: base.appendingPathComponent("images"),
-                                                 withIntermediateDirectories: true)
+        // 0700: aquí vive todo lo que copias. Por omisión macOS la dejaría en 0755, legible
+        // por cualquier otra cuenta del equipo. `setAttributes` endurece también las carpetas
+        // que ya existan de una versión anterior.
+        try? fm.createDirectory(at: base.appendingPathComponent("images"),
+                                withIntermediateDirectories: true,
+                                attributes: [.posixPermissions: 0o700])
+        try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: base.path)
+        try? fm.setAttributes([.posixPermissions: 0o700],
+                              ofItemAtPath: base.appendingPathComponent("images").path)
         return base
     }()
     private static var historyFile: URL { dir.appendingPathComponent("history.json") }
@@ -289,6 +297,8 @@ final class ClipboardStore: ObservableObject {
                 // Si el portapapeles ya trae PNG se guardan esos bytes; recodificar era trabajo de más.
                 if let png = pb.data(forType: .png) ?? Self.pngData(from: image) {
                     try? png.write(to: file)
+                    try? FileManager.default.setAttributes([.posixPermissions: 0o600],
+                                                           ofItemAtPath: file.path)
                 }
             }
             imageCache.setObject(image, forKey: name as NSString, cost: Self.cost(of: image))
@@ -491,6 +501,10 @@ final class ClipboardStore: ObservableObject {
         encoder.outputFormatting = [.withoutEscapingSlashes]
         guard let data = try? encoder.encode(toSave) else { return }
         try? data.write(to: Self.historyFile, options: .atomic)
+        // El escritura atómica crea un archivo nuevo cada vez, así que hay que reponer el
+        // modo en cada guardado o vuelve a quedar 0644.
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600],
+                                               ofItemAtPath: Self.historyFile.path)
         pruneOrphanImages(keeping: toSave)
     }
 

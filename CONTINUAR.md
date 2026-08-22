@@ -146,8 +146,10 @@ Un solo target SwiftPM, sin dependencias. `LSUIElement`, vive en la barra de men
    el permiso a la ruta del bundle. Mover la app de sitio sí lo pierde.
 6. Sin tests. `ClipboardStore` es `@MainActor` y toca `NSPasteboard` real; habría que
    inyectar el pasteboard para poder testear la deduplicación y el `trim`.
-7. El `history.json` no está cifrado. Si eso importa, el paso siguiente es guardarlo en el
-   Llavero o cifrarlo con una clave del Llavero.
+7. El `history.json` no está cifrado. La carpeta ya va en `0700` y el archivo en `0600`
+   —reaplicado en cada guardado, porque la escritura atómica crea un archivo nuevo—, así que
+   otras cuentas del equipo no lo leen. Pero cualquier proceso que corra como tú sí. El paso
+   siguiente de verdad es cifrarlo con una clave del Llavero.
 
 ## Cómo probar
 
