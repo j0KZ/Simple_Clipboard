@@ -3,6 +3,7 @@ class Portapapeles < Formula
   homepage "https://github.com/j0KZ/Simple_Clipboard"
   url "https://github.com/j0KZ/Simple_Clipboard/archive/refs/tags/v1.0.0.tar.gz"
   sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  license "MIT"
   head "https://github.com/j0KZ/Simple_Clipboard.git", branch: "main"
 
   # El Info.plist declara LSMinimumSystemVersion 14.0.

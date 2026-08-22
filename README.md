@@ -141,6 +141,10 @@ de la variable `CODESIGN_ID`:
 CODESIGN_ID="Nombre del certificado" ./build.sh --run
 ```
 
+## Licencia
+
+MIT. Ver [LICENSE](LICENSE).
+
 ## Alternativas libres
 
 Si prefieres algo ya hecho: [Maccy](https://maccy.app/) (MIT) es lo más cercano en
