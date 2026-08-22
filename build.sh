@@ -13,8 +13,10 @@ BUILD_DIR="build"
 APP="$BUILD_DIR/$APP_NAME.app"
 
 echo "▸ Compilando (release)…"
-swift build -c release
-BIN="$(swift build -c release --show-bin-path)/Portapapeles"
+# SWIFT_BUILD_FLAGS permite redirigir las cachés de SwiftPM fuera de $HOME. Lo necesita el
+# sandbox de compilación de Homebrew, que no deja escribir ahí. Vacío en un build normal.
+swift build -c release ${SWIFT_BUILD_FLAGS:-}
+BIN="$(swift build -c release --show-bin-path ${SWIFT_BUILD_FLAGS:-})/Portapapeles"
 
 echo "▸ Armando el bundle…"
 rm -rf "$APP"
@@ -47,8 +49,16 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-echo "▸ Firmando (ad-hoc)…"
-codesign --force --deep --sign - "$APP" 2>/dev/null || echo "  (sin firma)"
+# Firma ad-hoc salvo que se pase un certificado en CODESIGN_ID. La ad-hoc cambia de hash en
+# cada compilación, pero eso NO revoca Accesibilidad: macOS asocia el permiso a la ruta del
+# bundle, no al hash. Lo que sí lo pierde es mover la app de sitio.
+if [[ -n "${CODESIGN_ID:-}" ]]; then
+    echo "▸ Firmando con $CODESIGN_ID…"
+    codesign --force --deep --sign "$CODESIGN_ID" "$APP"
+else
+    echo "▸ Firmando (ad-hoc)…"
+    codesign --force --deep --sign - "$APP" 2>/dev/null || echo "  (sin firma)"
+fi
 
 echo "✓ Listo: $APP"
 

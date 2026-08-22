@@ -21,7 +21,17 @@ enum CaretLocator {
         return nil
     }
 
+    /// Estas consultas van a la app de delante y son síncronas sobre el hilo principal. Si esa
+    /// app está ocupada o colgada, abrir el panel se quedaría esperando. Con un tope corto, en
+    /// el peor caso perdemos la posición del cursor y caemos junto al puntero — que es el
+    /// comportamiento sin permiso de Accesibilidad, y el panel sigue apareciendo al instante.
+    /// Puesto sobre el elemento del sistema, vale como valor por omisión para todos los demás.
+    private static let boundedTimeout: Void = {
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.25)
+    }()
+
     private static func focusedElement() -> AXUIElement? {
+        _ = boundedTimeout
         let system = AXUIElementCreateSystemWide()
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &ref) == .success,

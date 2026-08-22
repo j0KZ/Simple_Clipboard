@@ -12,9 +12,22 @@ macOS 26.6, Apple Silicon.
 anclados, tope de recortes, persistencia en JSON compacto, UTF-8 (acentos, kanji, emoji),
 registro del atajo global.
 
-**NO verificado:** el aspecto del panel. La sesión donde se escribió no tenía permiso de
-Grabación de Pantalla, así que **nunca se vio la UI renderizada**. Lo primero que conviene
-hacer es abrirla con `⌥⌘V` y ajustar tamaños, espaciados y colores a ojo.
+**Verificado en pantalla (22-08-2026):** el panel ya se vio renderizado —
+lista, tarjeta seleccionada, miniatura de imagen, tarjeta de archivos y estado vacío.
+Se corrigieron la doble chincheta, la miniatura descolgada y el tamaño del panel.
+
+**La app es oscura siempre.** `AppDelegate` fija `NSApp.appearance = darkAqua`; no sigue
+el tema del sistema. Verificado lanzando con `-AppleInterfaceStyle Light`: la apariencia
+efectiva sigue siendo `NSAppearanceNameDarkAqua`. **No hay que diseñar para modo claro.**
+
+**Probado con teclado y ratón sintéticos (22-08-2026), todo pasando:** el atajo ⌥⌘V real,
+el panel abriéndose en el cursor de texto, ⏎ pegando solo en la app de destino, ⌘1–⌘9,
+⌘P, ⌘⌫, ⌦ sin ⌘ (que ya no borra), el buscador —incluida la búsqueda sin tildes—, clic en
+una tarjeta, arrastrar el panel por la cabecera, el menú contextual, el menú `⋯`,
+"Restablecer posición", Preferencias desde el panel, el ítem de inicio de sesión, y copiar
+y volver a pegar imágenes y varios archivos del Finder.
+
+**Sigue sin verse renderizado:** "Sin resultados" (búsqueda sin coincidencias).
 
 ## Por qué es un proyecto aparte
 
@@ -38,8 +51,30 @@ Un solo target SwiftPM, sin dependencias. `LSUIElement`, vive en la barra de men
 | `HotKey.swift` | atajo global (Carbon `RegisterEventHotKey`) + `Paster` (⌘V sintético) |
 | `SettingsView.swift` | Preferencias + capturador de atajos + ítem de inicio |
 | `tools/MakeIcon.swift` | dibuja el icono sin recursos externos |
+| `tools/TogglePanel.swift` | abre el panel por notificación distribuida (solo con `CLIP_DEBUG=1`) |
+| `tools/ToggleSettings.swift` | lo mismo para Preferencias |
+| `Formula/portapapeles.rb` | fórmula de Homebrew; compila desde el fuente en el equipo del usuario |
 
 ### Detalles que importan
+
+- **Activación:** un `LSUIElement` no siempre logra ponerse al frente con `NSApp.activate`.
+  macOS se lo concede cuando la acción viene de una interacción del usuario (clic en el ítem
+  de la barra, `open` de la app), y se lo niega si nadie tocó nada — por eso los disparadores
+  de `tools/` abren la ventana pero no siempre la traen al frente. No es un bug de la app.
+- **Distribución por Homebrew:** fórmula, no cask, porque la app no está notarizada y una
+  descarga precompilada la rechazaría Gatekeeper (`spctl -a` la da por *rejected*). Al
+  compilar en el equipo del usuario no hay atributo de cuarentena y arranca sin fricción.
+  La fórmula tiene que pasarle a SwiftPM `--disable-sandbox` (su sandbox no anida dentro del
+  de Homebrew) y redirigir `--cache-path` / `--config-path` / `--security-path` / `--scratch-path`
+  fuera de `$HOME`. `build.sh` lo recibe todo por la variable `SWIFT_BUILD_FLAGS`.
+  Probado de punta a punta con un tap local: instala, `brew test` pasa y la app arranca.
+- **El hover no manda hasta que el ratón se mueve** (`PanelController.hoverCanSelect`).
+  El panel nace junto al cursor de texto, así que a menudo aparece bajo el puntero; sin
+  esa guarda la tarjeta de debajo se seleccionaba sola y ⏎ / ⌘P / ⌘⌫ actuaban sobre ella.
+- **El título de la cabecera lleva `allowsHitTesting(false)`**, si no se come el clic y el
+  panel solo se podía arrastrar por el hueco de al lado.
+- **Al abrir Preferencias hay que cerrar el panel con `restoringFocus: false`.** Si no, el
+  panel pierde el foco, `hide()` reactiva la app anterior y ésta entierra Preferencias.
 
 - **Captura**: `Timer` cada 0.35 s comparando `NSPasteboard.general.changeCount`. No hay API
   de notificación en macOS; el sondeo es la forma estándar.
@@ -67,17 +102,22 @@ Un solo target SwiftPM, sin dependencias. `LSUIElement`, vive en la barra de men
 
 ## Pendientes / ideas
 
-1. **Mirar la UI y ajustarla.** Es lo primero.
-2. Recortes de texto enormes inflan el `history.json`. Falta un tope (¿no persistir sobre
-   256 KB y mantenerlos sólo en memoria?).
-3. No conserva formato: todo se guarda y se pega como texto plano. Faltaría RTF/HTML con un
+1. Ver renderizado el estado "Sin resultados". (La duda del menú contextual quedó
+   resuelta: no cierra el panel, comprobado con clic derecho sintético.)
+2. No conserva formato: todo se guarda y se pega como texto plano. Faltaría RTF/HTML con un
    "Pegar como texto sin formato" en el menú de la tarjeta.
-4. Lista de apps excluidas fija en `ClipboardStore.confidentialApps`; falta UI para editarla.
-5. Sin `NSWindow` de vista previa para imágenes grandes (hoy se recortan a 76 pt de alto).
-6. Firma ad-hoc ⇒ Accesibilidad se vuelve a pedir en cada rebuild. Con un certificado de
-   desarrollador se arregla.
-7. Sin tests. `ClipboardStore` es `@MainActor` y toca `NSPasteboard` real; habría que
+3. Lista de apps excluidas fija en `ClipboardStore.confidentialApps`; falta UI para editarla.
+   Ojo: solo cubre gestores de contraseñas, así que una contraseña copiada desde el navegador
+   sí queda guardada en claro en el `history.json`.
+4. Sin `NSWindow` de vista previa para imágenes grandes (hoy se recortan a 76 pt de alto).
+5. Sin notarizar. No molesta compilando en local, pero cierra la puerta a distribuir un
+   binario ya hecho (`spctl -a` la rechaza). Requiere cuenta de desarrollador de pago.
+   Nota medida: recompilar **no** revoca Accesibilidad aunque cambie el CDHash — macOS ata
+   el permiso a la ruta del bundle. Mover la app de sitio sí lo pierde.
+6. Sin tests. `ClipboardStore` es `@MainActor` y toca `NSPasteboard` real; habría que
    inyectar el pasteboard para poder testear la deduplicación y el `trim`.
+7. El `history.json` no está cifrado. Si eso importa, el paso siguiente es guardarlo en el
+   Llavero o cifrarlo con una clave del Llavero.
 
 ## Cómo probar
 

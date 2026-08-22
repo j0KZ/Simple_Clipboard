@@ -17,6 +17,10 @@ final class Prefs: ObservableObject {
     @Published var anchorRaw: String { didSet { d.set(anchorRaw, forKey: K.anchor) } }
     @Published var launchAtLogin: Bool { didSet { d.set(launchAtLogin, forKey: K.launchAtLogin) } }
 
+    /// No se guarda en disco: dice si el atajo actual pudo registrarse en el sistema.
+    /// Preferencias lo muestra para que un atajo ya tomado por otra app no falle mudo.
+    @Published var hotKeyRegistered = true
+
     // Posición donde quedó el panel después de arrastrarlo.
     @Published var hasPanelPosition: Bool { didSet { d.set(hasPanelPosition, forKey: K.hasPanelPosition) } }
     @Published var panelX: Double { didSet { d.set(panelX, forKey: K.panelX) } }
@@ -80,21 +84,6 @@ final class Prefs: ObservableObject {
         hasPanelPosition = d.bool(forKey: K.hasPanelPosition)
         panelX = d.double(forKey: K.panelX)
         panelY = d.double(forKey: K.panelY)
-    }
-
-    func resetToDefaults() {
-        for key in [K.hotKeyCode, K.hotKeyMods, K.maxItems, K.keepHistoryOnRestart, K.keepImages,
-                    K.ignoreConfidential, K.autoPaste, K.anchor] {
-            d.removeObject(forKey: key)
-        }
-        hotKeyCode = d.integer(forKey: K.hotKeyCode)
-        hotKeyMods = d.integer(forKey: K.hotKeyMods)
-        maxItems = d.double(forKey: K.maxItems)
-        keepHistoryOnRestart = d.bool(forKey: K.keepHistoryOnRestart)
-        keepImages = d.bool(forKey: K.keepImages)
-        ignoreConfidential = d.bool(forKey: K.ignoreConfidential)
-        autoPaste = d.bool(forKey: K.autoPaste)
-        anchorRaw = d.string(forKey: K.anchor) ?? PanelAnchor.caret.rawValue
     }
 }
 

@@ -63,6 +63,8 @@ struct HotKeySpec: Equatable {
 final class GlobalHotKey {
     private var ref: EventHotKeyRef?
     private let id: UInt32
+    /// false si el sistema rechazó la combinación, normalmente porque otra app ya la tiene.
+    private(set) var isRegistered = false
 
     nonisolated(unsafe) private static var handlers: [UInt32: () -> Void] = [:]
     nonisolated(unsafe) private static var nextID: UInt32 = 1
@@ -81,7 +83,8 @@ final class GlobalHotKey {
                                          GetApplicationEventTarget(),
                                          0,
                                          &ref)
-        if status != noErr {
+        isRegistered = (status == noErr)
+        if !isRegistered {
             ClipDebug.log("no se pudo registrar el atajo \(spec.display) (status \(status))")
             GlobalHotKey.handlers[id] = nil
         }
@@ -131,8 +134,17 @@ enum Paster {
         NSWorkspace.shared.open(url)
     }
 
-    static func pressCommandV() {
-        guard isTrusted, let source = CGEventSource(stateID: .combinedSessionState) else { return }
+    /// Espera a que sueltes los modificadores antes de mandar el ⌘V. Si el ⌥ del atajo sigue
+    /// apretado, el sistema fusiona las teclas y lo que llega es ⌥⌘V — es decir, el propio
+    /// atajo otra vez, y el panel se reabre en vez de pegar.
+    static func pressCommandV(retries: Int = 8) {
+        guard isTrusted else { return }
+        let held = NSEvent.modifierFlags.intersection([.option, .control, .shift])
+        if !held.isEmpty, retries > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { pressCommandV(retries: retries - 1) }
+            return
+        }
+        guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
         // Ignora los modificadores que el usuario todavía tenga apretados del atajo.
         source.setLocalEventsFilterDuringSuppressionState([.permitLocalMouseEvents, .permitSystemDefinedEvents],
                                                           state: .eventSuppressionStateSuppressionInterval)

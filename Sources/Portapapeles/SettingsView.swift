@@ -5,6 +5,7 @@ import ServiceManagement
 struct SettingsView: View {
     @ObservedObject private var prefs = Prefs.shared
     @State private var accessibilityGranted = Paster.isTrusted
+    @State private var revertingLoginItem = false
     private let ticker = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -13,7 +14,9 @@ struct SettingsView: View {
             history.tabItem { Label("Historial", systemImage: "clock.arrow.circlepath") }
             about.tabItem { Label("Acerca de", systemImage: "info.circle") }
         }
-        .frame(width: 470, height: 380)
+        // Alto suficiente para que "General" entre completa: con 380 la sección "Pegado"
+        // quedaba bajo el borde y el aviso de Accesibilidad solo se veía haciendo scroll.
+        .frame(width: 470, height: 580)
         .onReceive(ticker) { _ in
             let trusted = Paster.isTrusted
             if trusted != accessibilityGranted { accessibilityGranted = trusted }
@@ -35,6 +38,13 @@ struct SettingsView: View {
                 }
                 Text("Es el ⊞+V de Windows. Lo que elijas queda en el portapapeles, así que el ⌘V normal lo vuelve a pegar.")
                     .font(.caption).foregroundStyle(.secondary)
+                if !prefs.hotKeyRegistered {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                        Text("El sistema rechazó esta combinación: otra app ya la tiene. Elige otra.")
+                            .font(.caption)
+                    }
+                }
             }
 
             Section("Dónde aparece el panel") {
@@ -61,11 +71,32 @@ struct SettingsView: View {
                         }
                     }
                 }
+                if !accessibilityGranted {
+                    // La confusión clásica: la casilla figura marcada, pero esa entrada es de
+                    // otra copia de la app (otra ruta). macOS solo muestra el nombre, así que
+                    // las dos se ven iguales.
+                    Text("¿Ya lo concediste y sigue en naranja? Esa entrada de la lista suele ser "
+                         + "de otra copia de la app: macOS muestra solo el nombre y no la ruta. "
+                         + "Quítala con «−», vuelve a agregar esta y reinicia la app.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             Section {
                 Toggle("Abrir al iniciar sesión", isOn: $prefs.launchAtLogin)
-                    .onChange(of: prefs.launchAtLogin) { _, on in LoginItem.set(enabled: on) }
+                    .onChange(of: prefs.launchAtLogin) { _, on in
+                        // La vuelta atrás dispara este mismo onChange; el flag corta el bucle.
+                        guard !revertingLoginItem else { revertingLoginItem = false; return }
+                        guard !LoginItem.set(enabled: on) else { return }
+                        revertingLoginItem = true
+                        prefs.launchAtLogin = !on
+                        let alert = NSAlert()
+                        alert.messageText = "macOS no aceptó el ítem de inicio"
+                        alert.informativeText = "Suele pasar cuando la app no está en /Aplicaciones. "
+                            + "Muévela ahí y vuelve a intentarlo."
+                        alert.alertStyle = .warning
+                        alert.runModal()
+                    }
             }
         }
         .formStyle(.grouped)
@@ -94,7 +125,19 @@ struct SettingsView: View {
                 HStack {
                     Spacer()
                     Button("Borrar todo el historial", role: .destructive) {
-                        Task { @MainActor in ClipboardStore.shared.purge() }
+                        Task { @MainActor in
+                            // Se lleva también lo anclado y las imágenes del disco: conviene preguntar.
+                            let alert = NSAlert()
+                            alert.messageText = "¿Borrar todo el historial?"
+                            alert.informativeText = "Se eliminan todos los recortes, incluidos los anclados "
+                                + "y las imágenes guardadas. No se puede deshacer."
+                            alert.alertStyle = .warning
+                            alert.addButton(withTitle: "Borrar todo")
+                            alert.addButton(withTitle: "Cancelar")
+                            if alert.runModal() == .alertFirstButtonReturn {
+                                ClipboardStore.shared.purge()
+                            }
+                        }
                     }
                 }
             }
@@ -184,21 +227,31 @@ struct HotKeyRecorder: View {
 }
 
 enum LoginItem {
-    static func set(enabled: Bool) {
+    /// false si el sistema lo rechazó. Antes esto solo se anotaba en la consola y el
+    /// interruptor se quedaba encendido: la UI decía que sí y no era verdad.
+    @discardableResult
+    static func set(enabled: Bool) -> Bool {
         do {
             if enabled {
                 if SMAppService.mainApp.status != .enabled { try SMAppService.mainApp.register() }
             } else {
                 if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
             }
+            ClipDebug.log("ítem de inicio: \(enabled ? "registrado" : "quitado") "
+                          + "(status \(SMAppService.mainApp.status.rawValue))")
+            return true
         } catch {
             NSLog("Portapapeles: no se pudo cambiar el ítem de inicio: \(error.localizedDescription)")
+            ClipDebug.log("ítem de inicio: FALLÓ — \(error.localizedDescription)")
+            return false
         }
     }
 }
 
-final class SettingsWindowController: NSWindowController {
-    convenience init() {
+final class SettingsWindowController: NSWindowController, NSWindowDelegate {
+    private var onClose: (() -> Void)?
+
+    convenience init(onClose: @escaping () -> Void) {
         let hosting = NSHostingController(rootView: SettingsView())
         let window = NSWindow(contentViewController: hosting)
         window.title = "Preferencias de Portapapeles"
@@ -206,11 +259,24 @@ final class SettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.center()
         self.init(window: window)
+        self.onClose = onClose
+        window.delegate = self
     }
 
     func show() {
+        // Con Preferencias abierta la app pasa a ser normal para que tenga menú y Dock;
+        // al cerrarla, `windowWillClose` la devuelve a `.accessory`.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        let callback = onClose
+        onClose = nil
+        // `onClose` suelta la última referencia fuerte a este controlador, y con ella a la
+        // ventana. Hacerlo aquí mismo la destruye en mitad de su propio aviso de cierre y
+        // AppKit se va a negro. Se difiere un ciclo del runloop, con el cierre ya terminado.
+        DispatchQueue.main.async(execute: callback ?? {})
     }
 }

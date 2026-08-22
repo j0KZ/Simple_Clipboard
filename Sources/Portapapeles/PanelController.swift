@@ -29,7 +29,7 @@ final class ClipPanel: NSPanel {
 final class PanelController {
     static let shared = PanelController()
 
-    static let panelSize = CGSize(width: 292, height: 352)
+    static let panelSize = CGSize(width: 300, height: 420)
     /// Separación entre el cursor de texto y el panel, como en Windows.
     private let gap: CGFloat = 8
 
@@ -41,6 +41,17 @@ final class PanelController {
     private let prefs = Prefs.shared
     /// Evita guardar como "posición del usuario" el reposicionamiento que hacemos al abrir.
     private var isPositioning = false
+    /// Dónde estaba el puntero al abrir el panel. Ver `hoverCanSelect`.
+    private var mouseAtOpen: CGPoint = .zero
+
+    /// El panel aparece junto al cursor de texto, así que muchas veces nace debajo del
+    /// puntero. Sin esto, la tarjeta que quede bajo el ratón se selecciona sola y el ⏎,
+    /// el ⌘P o el ⌘⌫ actúan sobre ella en vez de sobre la primera. El hover manda solo
+    /// después de que el ratón se haya movido de verdad.
+    var hoverCanSelect: Bool {
+        let now = NSEvent.mouseLocation
+        return hypot(now.x - mouseAtOpen.x, now.y - mouseAtOpen.y) > 3
+    }
 
     var isVisible: Bool { panel?.isVisible == true }
 
@@ -50,16 +61,55 @@ final class PanelController {
 
     func start() {
         registerHotKey()
+        if ClipDebug.enabled { observeDebugTrigger() }
+    }
+
+    /// Con `CLIP_DEBUG=1` el panel también se abre publicando una notificación distribuida,
+    /// para poder revisar la UI sin depender del atajo global:
+    ///
+    ///     swift tools/TogglePanel.swift
+    ///
+    /// Fuera del modo depuración el observador ni siquiera se registra.
+    private func observeDebugTrigger() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.j0kz.Portapapeles.debugToggle"),
+            object: nil,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in
+                ClipDebug.log("disparador: toggle (visible=\(PanelController.shared.isVisible))")
+                PanelController.shared.toggle()
+            }
+        }
+        // Preferencias también, para poder probar el abrir/cerrar de la ventana sin clics.
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.j0kz.Portapapeles.debugSettings"),
+            object: nil,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in
+                ClipDebug.log("disparador: preferencias")
+                AppDelegate.shared?.toggleSettings()
+            }
+        }
+        ClipDebug.log("disparador de depuración activo")
     }
 
     func registerHotKey() {
         hotKey = nil
         let spec = prefs.hotKey
-        guard spec.isValid else { return }
-        hotKey = GlobalHotKey(spec: spec) {
+        guard spec.isValid else {
+            prefs.hotKeyRegistered = false
+            return
+        }
+        let key = GlobalHotKey(spec: spec) {
             Task { @MainActor in PanelController.shared.toggle() }
         }
-        ClipDebug.log("atajo: \(spec.display)")
+        hotKey = key
+        // Antes, si otra app ya tenía la combinación, esto fallaba en silencio y el atajo
+        // simplemente no hacía nada. Ahora Preferencias lo avisa.
+        prefs.hotKeyRegistered = key.isRegistered
+        ClipDebug.log("atajo: \(spec.display)\(key.isRegistered ? "" : " — RECHAZADO por el sistema")")
     }
 
     private func buildPanel() -> ClipPanel {
@@ -97,7 +147,9 @@ final class PanelController {
     }
 
     func show() {
+        let t0 = CFAbsoluteTimeGetCurrent()
         let panel = buildPanel()
+        let tBuilt = CFAbsoluteTimeGetCurrent()
         previousApp = NSWorkspace.shared.frontmostApplication
 
         let store = ClipboardStore.shared
@@ -105,8 +157,11 @@ final class PanelController {
         store.selection = 0
         store.presentationID = UUID()
 
+        mouseAtOpen = NSEvent.mouseLocation
         isPositioning = true
+        let tBeforeOrigin = CFAbsoluteTimeGetCurrent()
         panel.setFrame(NSRect(origin: origin(for: Self.panelSize), size: Self.panelSize), display: false)
+        let tPositioned = CFAbsoluteTimeGetCurrent()
         isPositioning = false
         panel.alphaValue = 0
         panel.makeKeyAndOrderFront(nil)
@@ -116,12 +171,25 @@ final class PanelController {
             panel.animator().alphaValue = 1
         }
 
+        // Con CLIP_DEBUG queda el desglose del coste de abrir: construir la vista la primera
+        // vez, y `origin(for:)`, que en modo "cursor de texto" hace consultas de Accesibilidad
+        // a la app de delante y es la parte que puede tardar.
+        ClipDebug.log(String(format: "abrir: vista %.1f ms · posición %.1f ms · total %.1f ms",
+                             (tBuilt - t0) * 1000,
+                             (tPositioned - tBeforeOrigin) * 1000,
+                             (CFAbsoluteTimeGetCurrent() - t0) * 1000))
+
         installMonitors()
+        // Sin quitarlo antes, un segundo `show()` (el ítem "Abrir el historial" del menú
+        // con el panel ya abierto) apilaba observadores sobre la misma ventana.
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: panel)
         NotificationCenter.default.addObserver(self, selector: #selector(panelResignedKey),
                                                name: NSWindow.didResignKeyNotification, object: panel)
     }
 
-    func hide(pasting: Bool) {
+    /// `restoringFocus: false` cuando lo que sigue es una ventana nuestra (Preferencias):
+    /// devolverle el foco a la app anterior la traería al frente y la enterraría.
+    func hide(pasting: Bool, restoringFocus: Bool = true) {
         guard let panel, panel.isVisible else { return }
         NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: panel)
         removeMonitors()
@@ -132,10 +200,12 @@ final class PanelController {
         ClipboardStore.shared.query = ""
         ClipboardStore.shared.selection = 0
 
-        if let target, target.bundleIdentifier != Bundle.main.bundleIdentifier {
-            target.activate()
-        } else {
-            NSApp.deactivate()
+        if restoringFocus {
+            if let target, target.bundleIdentifier != Bundle.main.bundleIdentifier {
+                target.activate()
+            } else {
+                NSApp.deactivate()
+            }
         }
 
         guard pasting, Paster.isTrusted else { return }
@@ -156,6 +226,7 @@ final class PanelController {
         // Windows cierra el panel en cuanto pierde el foco.
         Task { @MainActor in
             guard self.isVisible else { return }
+            ClipDebug.log("panel: perdió el foco, se cierra")
             self.hide(pasting: false)
         }
     }
@@ -178,12 +249,12 @@ final class PanelController {
         case .mouse:
             anchorRect = mouseRect()
         case .center:
-            let screen = screenForMouse()
+            guard let screen = screenForMouse() else { return .zero }
             return CGPoint(x: screen.visibleFrame.midX - size.width / 2,
                            y: screen.visibleFrame.midY - size.height / 2)
         }
 
-        let screen = screenContaining(anchorRect.origin) ?? screenForMouse()
+        guard let screen = screenContaining(anchorRect.origin) ?? screenForMouse() else { return .zero }
         let visible = screen.visibleFrame
 
         // Por debajo del cursor; si no cabe, por arriba.
@@ -207,8 +278,9 @@ final class PanelController {
         NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) }
     }
 
-    private func screenForMouse() -> NSScreen {
-        screenContaining(NSEvent.mouseLocation) ?? NSScreen.main ?? NSScreen.screens[0]
+    /// nil solo si no hay ninguna pantalla conectada; `NSScreen.screens[0]` reventaba ahí.
+    private func screenForMouse() -> NSScreen? {
+        screenContaining(NSEvent.mouseLocation) ?? NSScreen.main ?? NSScreen.screens.first
     }
 
     // MARK: - Teclado y clics
@@ -239,6 +311,9 @@ final class PanelController {
         guard isVisible else { return false }
         let store = ClipboardStore.shared
         let command = event.modifierFlags.contains(.command)
+        // Solo los atajos con ⌘: registrar cada tecla anotaría también lo que se escribe
+        // en el buscador, y eso no tiene por qué acabar en un log.
+        if command { ClipDebug.log("atajo en el panel: code=\(event.keyCode)") }
         let shift = event.modifierFlags.contains(.shift)
 
         switch Int(event.keyCode) {
@@ -254,7 +329,8 @@ final class PanelController {
         case kVK_Escape:
             if !store.query.isEmpty { store.query = "" } else { hide(pasting: false) }
             return true
-        case kVK_Delete where command, kVK_ForwardDelete:
+        // Las dos piden ⌘: sin él, ⌦ borraba el recorte en vez de un carácter del buscador.
+        case kVK_Delete where command, kVK_ForwardDelete where command:
             if let item = store.selectedItem { withAnimation(.easeOut(duration: 0.12)) { store.remove(item) } }
             return true
         case kVK_ANSI_P where command:
@@ -275,8 +351,13 @@ final class PanelController {
         return false
     }
 
+    /// La fila de números y también el teclado numérico: con un teclado completo el ⌘2 del
+    /// bloque numérico manda otro código y antes no hacía nada.
     private static let digitKeys: [Int: Int] = [
         kVK_ANSI_1: 1, kVK_ANSI_2: 2, kVK_ANSI_3: 3, kVK_ANSI_4: 4, kVK_ANSI_5: 5,
-        kVK_ANSI_6: 6, kVK_ANSI_7: 7, kVK_ANSI_8: 8, kVK_ANSI_9: 9
+        kVK_ANSI_6: 6, kVK_ANSI_7: 7, kVK_ANSI_8: 8, kVK_ANSI_9: 9,
+        kVK_ANSI_Keypad1: 1, kVK_ANSI_Keypad2: 2, kVK_ANSI_Keypad3: 3, kVK_ANSI_Keypad4: 4,
+        kVK_ANSI_Keypad5: 5, kVK_ANSI_Keypad6: 6, kVK_ANSI_Keypad7: 7, kVK_ANSI_Keypad8: 8,
+        kVK_ANSI_Keypad9: 9
     ]
 }

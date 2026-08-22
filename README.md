@@ -7,6 +7,26 @@ Aprietas el atajo, se abre un panel chico junto al cursor de texto con lo últim
 eliges uno y se pega. Lo que elegiste queda en el portapapeles del sistema, así que el `⌘V`
 normal lo vuelve a pegar — igual que en Windows.
 
+## Instalar
+
+```bash
+brew tap j0kz/clipboard https://github.com/j0KZ/Simple_Clipboard
+brew install portapapeles
+portapapeles
+```
+
+Para tenerla en Launchpad y Spotlight:
+
+```bash
+ln -sfn "$(brew --prefix)/opt/portapapeles/Portapapeles.app" /Applications/Portapapeles.app
+```
+
+Es una **fórmula** y no un *cask* a propósito: se compila en tu equipo, con las Command Line
+Tools que Homebrew ya exige. Tarda menos de un minuto. Una app precompilada bajada de
+internet llegaría con el atributo de cuarentena y, al no estar notarizada —hace falta cuenta
+de desarrollador de pago—, Gatekeeper la rechazaría. Compilándola localmente ese problema
+no existe.
+
 ## Atajos
 
 | Tecla | Qué hace |
@@ -24,6 +44,8 @@ Escribir filtra: el buscador está enfocado apenas se abre el panel.
 ## Qué guarda
 
 - **Texto**, **imágenes** y **archivos** copiados.
+- Un recorte de texto de más de 256 KB se queda solo en memoria y no va al `history.json`,
+  para no inflarlo. Si lo anclas se guarda igual.
 - De dónde salió cada recorte y hace cuánto.
 - Anclados arriba; no cuentan contra el tope y nunca se descartan.
 - Ignora 1Password, Bitwarden, KeePass, Contraseñas de Apple y todo lo marcado
@@ -37,10 +59,10 @@ images/           un PNG por imagen copiada
 ```
 
 El JSON usa claves de una letra, fechas en segundos epoch y omite campos vacíos:
-3 recortes de texto pesan ~330 bytes.
+3 recortes de texto corto pesan unos 260 bytes.
 
 ```json
-[{"g":"040a259db5e2e66c","t":"hola mundo","a":"Safari","d":1787373470,"k":"t"}]
+[{"g":"7a1f91508f7498e918a17c7a","t":"hola mundo","a":"Safari","d":1787373470,"k":"t"}]
 ```
 
 `g` huella · `t` texto · `m` imagen · `a` app de origen · `d` fecha · `p` anclado · `k` tipo
@@ -48,12 +70,29 @@ El JSON usa claves de una letra, fechas en segundos epoch y omite campos vacíos
 
 ## El panel
 
-Chico (292 × 352), con fondo translúcido que sigue el tema claro/oscuro del sistema.
+Chico (300 × 420), con fondo translúcido. **Siempre oscuro**, aunque el sistema esté en
+modo claro: la app fija `darkAqua` y no sigue el tema.
 **Se arrastra desde la cabecera y queda donde lo dejes** — como el de Windows. Para volver
 a que aparezca junto al cursor: menú `⋯` → *Restablecer posición*.
 
 Por omisión aparece donde está el cursor de texto (necesita Accesibilidad); si no,
 junto al puntero. También se puede fijar al centro de la pantalla, en Preferencias.
+
+## Publicar una versión
+
+La fórmula apunta a una etiqueta de Git. Para sacar la 1.0.0:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+Después hay que poner en `Formula/portapapeles.rb` el `sha256` del tarball que genera GitHub:
+
+```bash
+curl -sL https://github.com/j0KZ/Simple_Clipboard/archive/refs/tags/v1.0.0.tar.gz | shasum -a 256
+```
+
+Mientras no haya etiqueta, se instala igual desde la rama con `brew install --HEAD portapapeles`.
 
 ## Compilar
 
@@ -67,7 +106,14 @@ Requiere macOS 14+ y las Command Line Tools de Xcode.
 - `./build.sh --run` compila, mata la instancia corriendo y la lanza
 - `./build.sh --install` además la copia a `/Applications`
 
-Con `CLIP_DEBUG=1` la app registra en stderr el atajo y cada recorte capturado.
+Con `CLIP_DEBUG=1` la app registra en stderr el atajo y cada recorte capturado, y además
+escucha una notificación distribuida para abrir el panel sin el atajo — útil para revisar
+la UI desde un script, sin permisos de automatización:
+
+```bash
+CLIP_DEBUG=1 ./build/Portapapeles.app/Contents/MacOS/Portapapeles &
+swift tools/TogglePanel.swift
+```
 
 ## Permisos
 
@@ -79,9 +125,21 @@ Con `CLIP_DEBUG=1` la app registra en stderr el atajo y cada recorte capturado.
 Sin el permiso la app funciona igual: copia el recorte y das `⌘V` tú, y el panel
 aparece junto al puntero.
 
-> El `build.sh` firma ad-hoc, así que el hash cambia en cada compilación y macOS vuelve
-> a pedir Accesibilidad después de cada rebuild. Es lo esperable sin certificado de
-> desarrollador.
+> Recompilar **no** revoca el permiso, aunque `build.sh` firme ad-hoc y el hash cambie:
+> macOS lo asocia a la ruta del bundle. Comprobado forzando un hash nuevo y volviendo a
+> lanzar: `AXIsProcessTrusted()` seguía en `true`.
+>
+> Lo que sí confunde: si Preferencias lo muestra en naranja **con la casilla marcada en
+> Ajustes**, esa entrada es de otra copia de la app en otra ruta — macOS enseña sólo el
+> nombre. Quítala con «−», vuelve a agregar la que estás usando y reinicia la app.
+> Mover la app de sitio tiene el mismo efecto.
+
+Si algún día se firma con un certificado propio (o de desarrollador), `build.sh` lo toma
+de la variable `CODESIGN_ID`:
+
+```bash
+CODESIGN_ID="Nombre del certificado" ./build.sh --run
+```
 
 ## Alternativas libres
 

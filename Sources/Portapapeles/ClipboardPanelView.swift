@@ -30,11 +30,16 @@ struct ClipboardPanelView: View {
 
     private var header: some View {
         HStack(spacing: 6) {
+            // Sin `allowsHitTesting(false)` el icono y el título se comen el clic y el
+            // arrastre solo funcionaba agarrando el hueco de al lado — justo el sitio
+            // donde nadie agarra una ventana.
             Image(systemName: "doc.on.clipboard")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.tint)
+                .allowsHitTesting(false)
             Text("Portapapeles")
                 .font(.system(size: 12, weight: .semibold))
+                .allowsHitTesting(false)
             Spacer(minLength: 0)
             Menu {
                 Button("Borrar todo") { withAnimation { store.clear() } }
@@ -108,7 +113,7 @@ struct ClipboardPanelView: View {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                             ClipCard(item: item, selected: index == store.selection)
                                 .id(item.id)
-                                .onHover { if $0 { store.selection = index } }
+                                .onHover { if $0, PanelController.shared.hoverCanSelect { store.selection = index } }
                                 .onTapGesture { store.use(item) }
                         }
                     }
@@ -171,6 +176,11 @@ struct ClipCard: View {
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(hovering || selected ? 1 : 0.7))
+                // La seleccionada se tiñe además del acento: el borde solo no se lee de un vistazo.
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.accentColor.opacity(selected ? 0.14 : 0))
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -199,10 +209,16 @@ struct ClipCard: View {
         switch item.kind {
         case .image:
             if let image = store.image(for: item) {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: 76, alignment: .leading)
+                // Miniatura que ocupa todo el ancho de la tarjeta, recortada como en Win+V.
+                // Con `.fit` alineado a la izquierda quedaba media tarjeta vacía.
+                Color.clear
+                    .frame(height: 76)
+                    .frame(maxWidth: .infinity)
+                    .overlay(
+                        Image(nsImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    )
                     .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             } else {
                 Text(item.body).font(.system(size: 11.5))
@@ -236,12 +252,8 @@ struct ClipCard: View {
     @ViewBuilder
     private var controls: some View {
         HStack(spacing: 2) {
-            if item.pinned {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.tint)
-                    .frame(width: 18, height: 18)
-            }
+            // Con el puntero encima manda el botón de anclar; sin él, el chincheta de estado.
+            // Mostrar los dos a la vez ponía dos chinchetas seguidas en las tarjetas ancladas.
             if hovering || selected {
                 iconButton(item.pinned ? "pin.slash" : "pin", help: item.pinned ? "Desanclar" : "Anclar") {
                     withAnimation(.easeOut(duration: 0.12)) { store.togglePin(item) }
@@ -249,6 +261,11 @@ struct ClipCard: View {
                 iconButton("xmark", help: "Eliminar") {
                     withAnimation(.easeOut(duration: 0.12)) { store.remove(item) }
                 }
+            } else if item.pinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tint)
+                    .frame(width: 18, height: 18)
             }
         }
     }

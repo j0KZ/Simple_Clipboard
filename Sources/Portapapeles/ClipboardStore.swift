@@ -63,13 +63,26 @@ struct ClipItem: Identifiable, Codable, Equatable {
         return text.split(separator: "\n").map { URL(fileURLWithPath: String($0)) }
     }
 
+    /// La tarjeta solo pinta 3 líneas, pero un recorte puede pesar megas. Recortar el texto
+    /// *antes* de tocarlo evita que SwiftUI mida y trocee 2 MB para mostrar 3 renglones.
+    static let previewLimit = 600
+
     /// Texto que se muestra en la tarjeta.
     var body: String {
         switch kind {
-        case .text: return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .text: return String(text.prefix(Self.previewLimit))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
         case .files: return urls.map { $0.lastPathComponent }.joined(separator: "\n")
         case .image: return text.isEmpty ? "Imagen" : "Imagen · \(text)"
         }
+    }
+
+    /// El buscador mira el recorte completo, pero sin fabricar una copia en minúsculas de él:
+    /// `range(of:options:)` recorre en el sitio. De paso ignora tildes, así "reunion" encuentra "reunión".
+    func matches(_ needle: String) -> Bool {
+        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+        if text.range(of: needle, options: options) != nil { return true }
+        return appName?.range(of: needle, options: options) != nil
     }
 
     /// Una línea, para el tooltip y la búsqueda.
@@ -124,7 +137,14 @@ final class ClipboardStore: ObservableObject {
     private let prefs = Prefs.shared
     private var timer: Timer?
     private var lastChangeCount = NSPasteboard.general.changeCount
-    private var imageCache: [String: NSImage] = [:]
+    /// Con un diccionario suelto, cada imagen vista en la sesión se quedaba en RAM para siempre.
+    /// `NSCache` pone techo y además suelta lo que sobra cuando el sistema aprieta.
+    private let imageCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 40
+        cache.totalCostLimit = 64 * 1024 * 1024
+        return cache
+    }()
     private var saveWork: DispatchWorkItem?
 
     /// Apps cuyo portapapeles nunca se guarda.
@@ -200,10 +220,15 @@ final class ClipboardStore: ObservableObject {
             let digest = Self.digest(of: data)
             let size = "\(Int(image.size.width)) × \(Int(image.size.height))"
             let name = "\(digest).png"
-            if let png = Self.pngData(from: image) {
-                try? png.write(to: Self.imagesDir.appendingPathComponent(name))
+            let file = Self.imagesDir.appendingPathComponent(name)
+            // Volver a copiar la misma imagen no reescribe el archivo: el digest ya lo identifica.
+            if !FileManager.default.fileExists(atPath: file.path) {
+                // Si el portapapeles ya trae PNG se guardan esos bytes; recodificar era trabajo de más.
+                if let png = pb.data(forType: .png) ?? Self.pngData(from: image) {
+                    try? png.write(to: file)
+                }
             }
-            imageCache[name] = image
+            imageCache.setObject(image, forKey: name as NSString, cost: Self.cost(of: image))
             return ClipItem(kind: .image, text: size, imageName: name,
                             appName: appName, date: Date(), digest: digest)
         }
@@ -255,10 +280,8 @@ final class ClipboardStore: ObservableObject {
 
     /// Fijados arriba, después por fecha. Filtrado por el buscador.
     var visibleItems: [ClipItem] {
-        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let matched = needle.isEmpty ? items : items.filter {
-            $0.oneLine.lowercased().contains(needle) || ($0.appName ?? "").lowercased().contains(needle)
-        }
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matched = needle.isEmpty ? items : items.filter { $0.matches(needle) }
         return matched.sorted { a, b in
             if a.pinned != b.pinned { return a.pinned }
             return a.date > b.date
@@ -280,9 +303,10 @@ final class ClipboardStore: ObservableObject {
     }
 
     /// El "Borrar todo" de Windows: se lleva todo menos lo fijado.
-    func clear(keepPinned: Bool = true) {
-        let removed = items.filter { keepPinned ? !$0.pinned : true }
-        items = keepPinned ? items.filter { $0.pinned } : []
+    /// Para llevárselo todo, incluido lo anclado, está `purge()`.
+    func clear() {
+        let removed = items.filter { !$0.pinned }
+        items = items.filter { $0.pinned }
         removed.forEach(deleteImageFile)
         clampSelection()
         scheduleSave()
@@ -310,21 +334,28 @@ final class ClipboardStore: ObservableObject {
     /// Deja el recorte en el portapapeles del sistema: el ⌘V siguiente lo vuelve a pegar.
     func writeToPasteboard(_ item: ClipItem) {
         let pb = NSPasteboard.general
-        pb.clearContents()
         switch item.kind {
         case .text:
+            pb.clearContents()
             pb.setString(item.text, forType: .string)
         case .files:
             let urls = item.urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+            pb.clearContents()
             if urls.isEmpty {
                 pb.setString(item.text, forType: .string)
             } else {
                 pb.writeObjects(urls.map { $0 as NSURL })
             }
         case .image:
-            if let image = image(for: item), let png = Self.pngData(from: image) {
-                pb.setData(png, forType: .png)
+            // Los bytes del PNG ya están en disco: recodificar la NSImage era trabajo de más.
+            // Y si el archivo desapareció, más vale no tocar el portapapeles que vaciarlo.
+            guard let name = item.imageName,
+                  let png = try? Data(contentsOf: Self.imagesDir.appendingPathComponent(name)) else {
+                ClipDebug.log("la imagen del recorte ya no está en disco; el portapapeles queda como estaba")
+                return
             }
+            pb.clearContents()
+            pb.setData(png, forType: .png)
         }
         lastChangeCount = pb.changeCount
 
@@ -346,16 +377,21 @@ final class ClipboardStore: ObservableObject {
 
     func image(for item: ClipItem) -> NSImage? {
         guard let name = item.imageName else { return nil }
-        if let cached = imageCache[name] { return cached }
+        if let cached = imageCache.object(forKey: name as NSString) { return cached }
         guard let image = NSImage(contentsOf: Self.imagesDir.appendingPathComponent(name)) else { return nil }
-        imageCache[name] = image
+        imageCache.setObject(image, forKey: name as NSString, cost: Self.cost(of: image))
         return image
     }
 
     private func deleteImageFile(_ item: ClipItem) {
         guard let name = item.imageName else { return }
-        imageCache[name] = nil
+        imageCache.removeObject(forKey: name as NSString)
         try? FileManager.default.removeItem(at: Self.imagesDir.appendingPathComponent(name))
+    }
+
+    /// Lo que ocupa descomprimida, que es lo que de verdad pesa en RAM.
+    private static func cost(of image: NSImage) -> Int {
+        Int(image.size.width * image.size.height * 4)
     }
 
     private static func pngData(from image: NSImage) -> Data? {
@@ -377,9 +413,15 @@ final class ClipboardStore: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
     }
 
+    /// Un solo recorte de 2 MB inflaba el `history.json` a 2 MB y lo releía entero en cada arranque.
+    /// Por encima de este tamaño el recorte vive solo en memoria — salvo que lo ancles, que es
+    /// la forma de decir "este quiero conservarlo".
+    private static let maxPersistedBytes = 256 * 1024
+
     private func save() {
         // Como en Windows: si no se guarda todo, al menos lo fijado sobrevive.
-        let toSave = prefs.keepHistoryOnRestart ? items : items.filter { $0.pinned }
+        var toSave = prefs.keepHistoryOnRestart ? items : items.filter { $0.pinned }
+        toSave = toSave.filter { $0.pinned || $0.text.utf8.count <= Self.maxPersistedBytes }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.withoutEscapingSlashes]
         guard let data = try? encoder.encode(toSave) else { return }
@@ -394,6 +436,17 @@ final class ClipboardStore: ObservableObject {
             guard let name = item.imageName else { return true }
             return FileManager.default.fileExists(atPath: Self.imagesDir.appendingPathComponent(name).path)
         }
+        // Si bajaste el tope entre sesiones, se aplica ya y no recién en la próxima copia.
+        trim()
+    }
+
+    /// Guarda ahora mismo lo que estuviera esperando el rebote de 0,6 s.
+    /// Sin esto, copiar y salir de la app enseguida perdía el último recorte.
+    func flushSave() {
+        guard saveWork != nil else { return }
+        saveWork?.cancel()
+        saveWork = nil
+        save()
     }
 
     /// Borra del disco las imágenes que ya no referencia nadie.
@@ -407,7 +460,7 @@ final class ClipboardStore: ObservableObject {
 
     func purge() {
         items = []
-        imageCache = [:]
+        imageCache.removeAllObjects()
         try? FileManager.default.removeItem(at: Self.imagesDir)
         try? FileManager.default.createDirectory(at: Self.imagesDir, withIntermediateDirectories: true)
         try? FileManager.default.removeItem(at: Self.historyFile)

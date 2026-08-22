@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static private(set) var shared: AppDelegate?
@@ -10,6 +9,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
         NSApp.setActivationPolicy(.accessory)
+        // La app es oscura siempre, no sigue el tema del sistema.
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+        ClipDebug.log("apariencia: \(NSApp.effectiveAppearance.name.rawValue)")
+        ClipDebug.log("accesibilidad concedida a ESTA compilación: \(Paster.isTrusted)")
 
         ClipboardStore.shared.start()
         PanelController.shared.start()
@@ -23,6 +26,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if !Paster.isTrusted { Paster.requestPermission() }
             }
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        ClipboardStore.shared.flushSave()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -75,8 +82,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showSettingsAction() { showSettings() }
 
     func showSettings() {
-        if settingsWindow == nil { settingsWindow = SettingsWindowController() }
+        // Si se pidió desde el menú ⋯ del panel, hay que cerrarlo antes y sin devolverle el
+        // foco a la app anterior: si no, esa app vuelve al frente y Preferencias se abre
+        // detrás de ella. Parecía que la app se cerraba sola.
+        MainActor.assumeIsolated {
+            PanelController.shared.hide(pasting: false, restoringFocus: false)
+        }
+        if settingsWindow == nil {
+            // Se rehace cada vez: al cerrarla se suelta y con ella el `ticker` que sondea
+            // el permiso de Accesibilidad, que si no seguía latiendo para siempre.
+            settingsWindow = SettingsWindowController { [weak self] in
+                self?.settingsWindow = nil
+                // Vuelve a ser app de barra de menús: si no, el icono queda en el Dock.
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
         settingsWindow?.show()
+    }
+
+    /// Solo la usa el disparador de depuración, para probar el ciclo abrir/cerrar.
+    func toggleSettings() {
+        if let window = settingsWindow?.window, window.isVisible {
+            window.performClose(nil)
+        } else {
+            showSettings()
+        }
     }
 
     @objc private func quit() { NSApp.terminate(nil) }
