@@ -1,8 +1,8 @@
 class Portapapeles < Formula
   desc "Historial del portapapeles estilo Win+V, para macOS"
   homepage "https://github.com/j0KZ/Simple_Clipboard"
-  url "https://github.com/j0KZ/Simple_Clipboard/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "a697704b234559e3e480decc74fea9463c33c1b2f97799f5fe1a2cd7bac8f7cc"
+  url "https://github.com/j0KZ/Simple_Clipboard/archive/refs/tags/v1.1.0.tar.gz"
+  sha256 "4ac2af9415183420fab8af5a824c4724f9dcf224e05a67f77d2b6a5c3da3773b"
   license "MIT"
   head "https://github.com/j0KZ/Simple_Clipboard.git", branch: "main"
 
