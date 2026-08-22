@@ -99,19 +99,23 @@ junto al puntero. También se puede fijar al centro de la pantalla, en Preferenc
 
 ## Publicar una versión
 
-La fórmula apunta a una etiqueta de Git. Para sacar la 1.0.0:
+La fórmula apunta a una **etiqueta de Git**, no a la rama. Es el error fácil de cometer:
+si commiteas y no etiquetas, `brew install` sigue compilando la versión vieja. El orden es:
 
 ```bash
-git tag v1.0.0 && git push origin v1.0.0
+V=1.1.0
+sed -i '' "s/^VERSION=.*/VERSION=\"$V\"/" build.sh
+git commit -am "Versión $V" && git push origin main
+git tag "v$V" && git push origin "v$V"
+SHA=$(curl -sL "https://github.com/j0KZ/Simple_Clipboard/archive/refs/tags/v$V.tar.gz" | shasum -a 256 | awk '{print $1}')
+sed -i '' -e "s|/tags/v.*\.tar\.gz|/tags/v$V.tar.gz|" -e "s|sha256 \".*\"|sha256 \"$SHA\"|" Formula/portapapeles.rb
+git commit -am "Fórmula: v$V" && git push origin main
 ```
 
-Después hay que poner en `Formula/portapapeles.rb` el `sha256` del tarball que genera GitHub:
+El `sha256` se calcula **después** de empujar la etiqueta, porque es el hash de ese tarball.
+El último commit cambia `main` pero no la etiqueta, así que el hash sigue siendo válido.
 
-```bash
-curl -sL https://github.com/j0KZ/Simple_Clipboard/archive/refs/tags/v1.0.0.tar.gz | shasum -a 256
-```
-
-Mientras no haya etiqueta, se instala igual desde la rama con `brew install --HEAD portapapeles`.
+Para probar sin etiquetar: `brew install --HEAD portapapeles`.
 
 ## Compilar
 
