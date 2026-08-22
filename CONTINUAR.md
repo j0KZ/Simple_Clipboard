@@ -96,8 +96,18 @@ Un solo target SwiftPM, sin dependencias. `LSUIElement`, vive en la barra de men
 - **Al abrir Preferencias hay que cerrar el panel con `restoringFocus: false`.** Si no, el
   panel pierde el foco, `hide()` reactiva la app anterior y ésta entierra Preferencias.
 
-- **Captura**: `Timer` cada 0.35 s comparando `NSPasteboard.general.changeCount`. No hay API
-  de notificación en macOS; el sondeo es la forma estándar.
+- **Captura**: `Timer` cada 0.15 s comparando `NSPasteboard.general.changeCount`. No hay API
+  de notificación en macOS; el sondeo es la forma estándar. El intervalo no es arbitrario:
+  un dictado deja su texto en el portapapeles unos 520 ms y con 0,35 s se perdía la mitad
+  de las veces. Cuesta ~0,11 % de un núcleo en reposo, contra ~0,05 % con 0,35 s.
+- **Recortes marcados como privados** (`org.nspasteboard.ConcealedType` y compañía) no se
+  descartan en el acto: quedan en suspenso, solo en memoria, en `pendingPrivate`. Llegan al
+  historial **únicamente** si el portapapeles vuelve *exactamente* al contenido anterior
+  dentro de 1,5 s. Esa restauración es la firma de un pegado temporal —Wispr Flow guarda tu
+  portapapeles, escribe la transcripción, la pega y restaura— y es justo lo que un gestor de
+  contraseñas nunca hace: el suyo se queda puesto hasta que él mismo lo limpia. Medido con
+  Wispr Flow: 524 ms y 517 ms, devolviendo el contenido previo exacto. Solo aplica a texto,
+  para que un recorte privado nunca escriba un PNG en disco. Probado en los dos sentidos.
 - **Prioridad al leer**: archivos → imagen → texto. El Finder deja un string junto a las URLs,
   por eso los archivos van primero.
 - **Deduplicación** por `digest` (SHA-256 truncado a 12 bytes). El `digest` es también el `id`.

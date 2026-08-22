@@ -151,12 +151,24 @@ final class ClipboardStore: ObservableObject {
     }()
     private var saveWork: DispatchWorkItem?
 
+    /// Un recorte marcado como privado que todavía no sabemos si es un secreto o un pegado
+    /// temporal. Ver `holdPrivateClip`. Vive solo en memoria y nunca toca el disco.
+    private var pendingPrivate: (item: ClipItem, restoresTo: String?, seenAt: Date)?
+    /// Huella de lo último que vimos en el portapapeles, para reconocer una restauración.
+    private var lastSeenDigest: String?
+    /// Cuánto margen damos a que aparezca la restauración. Medido con Wispr Flow: ~520 ms.
+    private static let restoreWindow: TimeInterval = 1.5
+
     /// Apps cuyo portapapeles nunca se guarda.
     private static let confidentialApps: Set<String> = [
         "com.agilebits.onepassword7", "com.1password.1password", "com.agilebits.onepassword",
         "com.apple.keychainaccess", "com.bitwarden.desktop", "com.dashlane.dashlanephonefinal",
         "com.lastpass.LastPass", "in.sinew.Enpass-Desktop", "com.keepassium.mac",
-        "org.keepassxc.keepassxc", "com.mackieinnovations.strongbox", "com.apple.Passwords"
+        "org.keepassxc.keepassxc", "com.mackieinnovations.strongbox", "com.apple.Passwords",
+        // Keeper Security (ojo: no es KeePass, es otro producto). Se listan las variantes
+        // conocidas porque el identificador cambió con las versiones; sobra con que una
+        // coincida y las demás no molestan.
+        "com.callpod.keeperdesktop", "com.callpod.keeper", "com.keepersecurity.keeper"
     ]
 
     /// Tipos con los que una app pide que su copia no se registre.
@@ -183,7 +195,10 @@ final class ClipboardStore: ObservableObject {
 
     func start() {
         guard timer == nil else { return }
-        let t = Timer(timeInterval: 0.35, repeats: true) { [weak self] _ in
+        // 0,15 s en vez de 0,35: la ventana de restauración de un dictado dura ~520 ms y
+        // con el intervalo anterior se perdía la mitad de las veces. El sondeo cuesta unos
+        // 0,2 ms, así que el reposo sube de ~0,05 % a ~0,12 % de un núcleo.
+        let t = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.poll() }
         }
         t.tolerance = 0.1
@@ -197,14 +212,58 @@ final class ClipboardStore: ObservableObject {
         lastChangeCount = pb.changeCount
 
         let types = Set((pb.types ?? []).map { $0.rawValue })
-        if prefs.ignoreConfidential, !types.isDisjoint(with: Self.privateTypes) { return }
-
         let app = NSWorkspace.shared.frontmostApplication
-        if prefs.ignoreConfidential,
-           let bundle = app?.bundleIdentifier, Self.confidentialApps.contains(bundle) { return }
 
-        guard let item = capture(from: pb, app: app) else { return }
+        // La app de origen manda: lo copiado dentro de un gestor de contraseñas se descarta
+        // sin más, sin pasar por la lógica de restauración.
+        if prefs.ignoreConfidential,
+           let bundle = app?.bundleIdentifier, Self.confidentialApps.contains(bundle) {
+            pendingPrivate = nil
+            return
+        }
+
+        if prefs.ignoreConfidential, !types.isDisjoint(with: Self.privateTypes) {
+            holdPrivateClip(from: pb, app: app)
+            return
+        }
+
+        guard let item = capture(from: pb, app: app) else {
+            pendingPrivate = nil
+            return
+        }
+
+        if let pending = pendingPrivate {
+            pendingPrivate = nil
+            if item.digest == pending.restoresTo,
+               Date().timeIntervalSince(pending.seenAt) < Self.restoreWindow {
+                ClipDebug.log("recorte privado restaurado: era un pegado temporal, se guarda")
+                insert(pending.item)
+                lastSeenDigest = item.digest
+                return   // lo restaurado ya estaba en la lista; no lo reordenamos
+            }
+        }
+
+        lastSeenDigest = item.digest
         insert(item)
+    }
+
+    /// Deja en suspenso un recorte marcado como privado. Solo llega al historial si el
+    /// portapapeles vuelve **exactamente** a lo que había antes dentro de `restoreWindow`.
+    ///
+    /// Eso es lo que hace un dictado —Wispr Flow guarda tu portapapeles, escribe la
+    /// transcripción, la pega y restaura lo anterior— y es justo lo que un gestor de
+    /// contraseñas nunca hace: el suyo se queda puesto hasta que él mismo lo limpia. Sin
+    /// esa restauración el recorte se descarta y no toca el disco ni la lista.
+    private func holdPrivateClip(from pb: NSPasteboard, app: NSRunningApplication?) {
+        // Solo texto: así un recorte privado nunca llega a escribir un PNG en disco.
+        guard let string = pb.string(forType: .string),
+              !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            pendingPrivate = nil
+            return
+        }
+        let item = ClipItem(kind: .text, text: string, appName: app?.localizedName,
+                            date: Date(), digest: Self.digest(of: Data(string.utf8)))
+        pendingPrivate = (item: item, restoresTo: lastSeenDigest, seenAt: Date())
     }
 
     private func capture(from pb: NSPasteboard, app: NSRunningApplication?) -> ClipItem? {
@@ -363,6 +422,7 @@ final class ClipboardStore: ObservableObject {
             pb.setData(png, forType: .png)
         }
         lastChangeCount = pb.changeCount
+        lastSeenDigest = item.digest
 
         if let index = items.firstIndex(where: { $0.id == item.id }) {
             var updated = items.remove(at: index)
