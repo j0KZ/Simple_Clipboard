@@ -128,7 +128,7 @@ final class PanelController {
         effect.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.5).cgColor
         effect.autoresizingMask = [.width, .height]
 
-        let hosting = NSHostingView(rootView: ClipboardPanelView())
+        let hosting = NSHostingView(rootView: ClipboardPanelView(store: .shared))
         hosting.frame = effect.bounds
         hosting.autoresizingMask = [.width, .height]
         effect.addSubview(hosting)

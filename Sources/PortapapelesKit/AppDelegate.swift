@@ -1,12 +1,12 @@
 import AppKit
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+public final class AppDelegate: NSObject, NSApplicationDelegate {
     static private(set) var shared: AppDelegate?
 
     private var statusItem: NSStatusItem?
     private var settingsWindow: SettingsWindowController?
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    public func applicationDidFinishLaunching(_ notification: Notification) {
         // Dos copias a la vez (la de Homebrew y una compilada a mano, por ejemplo) registran
         // las dos el atajo global sin error, pero solo una lo recibe: el síntoma es que ⌥⌘V
         // "no hace nada". Carbon no avisa, así que la segunda se retira sola.
@@ -41,11 +41,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
+    public func applicationWillTerminate(_ notification: Notification) {
         ClipboardStore.shared.flushSave()
     }
 
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showSettings()
         return true
     }

@@ -199,6 +199,11 @@ final class ClipboardStore: ObservableObject {
 
     private init() { load() }
 
+    #if DEBUG
+    /// Historial de mentira para las previews: no toca el disco ni el portapapeles.
+    init(sample: [ClipItem]) { items = sample }
+    #endif
+
     // MARK: - Vigilancia
 
     func start() {
@@ -318,25 +323,41 @@ final class ClipboardStore: ObservableObject {
     // MARK: - Lista
 
     private func insert(_ item: ClipItem) {
-        if let index = items.firstIndex(where: { $0.digest == item.digest }) {
-            var existing = items.remove(at: index)
-            existing.date = item.date
-            existing.appName = item.appName
-            items.insert(existing, at: 0)
-        } else {
-            items.insert(item, at: 0)
-        }
+        items = Self.inserting(item, into: items)
         trim()
         scheduleSave()
         ClipDebug.log("nuevo recorte: \(item.kind.rawValue) · \(item.oneLine.prefix(40))")
     }
 
+    /// Lo copiado va arriba. Si ya estaba en el historial no se duplica: sube el
+    /// que había, con la fecha y la app de ahora.
+    nonisolated static func inserting(_ item: ClipItem, into list: [ClipItem]) -> [ClipItem] {
+        var list = list
+        if let index = list.firstIndex(where: { $0.digest == item.digest }) {
+            var existing = list.remove(at: index)
+            existing.date = item.date
+            existing.appName = item.appName
+            list.insert(existing, at: 0)
+        } else {
+            list.insert(item, at: 0)
+        }
+        return list
+    }
+
     private func trim() {
-        let limit = max(5, Int(prefs.maxItems))
+        let (kept, dropped) = Self.trimming(items, limit: max(5, Int(prefs.maxItems)))
+        guard !dropped.isEmpty else { return }
+        items = kept
+        dropped.forEach(deleteImageFile)
+    }
+
+    /// Recorta el historial al límite de preferencias. Lo fijado no cuenta ni se
+    /// descarta nunca; lo devuelto en `dropped` pierde también su imagen en disco.
+    nonisolated static func trimming(_ list: [ClipItem], limit: Int) -> (kept: [ClipItem], dropped: [ClipItem]) {
         var unpinned = 0
         var kept: [ClipItem] = []
         var dropped: [ClipItem] = []
-        for item in items {
+        for item in list {
             if item.pinned {
                 kept.append(item)
             } else if unpinned < limit {
@@ -346,15 +367,15 @@ final class ClipboardStore: ObservableObject {
                 dropped.append(item)
             }
         }
-        guard !dropped.isEmpty else { return }
-        items = kept
-        dropped.forEach(deleteImageFile)
+        return (kept, dropped)
     }
 
     /// Fijados arriba, después por fecha. Filtrado por el buscador.
-    var visibleItems: [ClipItem] {
+    var visibleItems: [ClipItem] { Self.visible(items, query: query) }
+
+    nonisolated static func visible(_ list: [ClipItem], query: String) -> [ClipItem] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let matched = needle.isEmpty ? items : items.filter { $0.matches(needle) }
+        let matched = needle.isEmpty ? list : list.filter { $0.matches(needle) }
         return matched.sorted { a, b in
             if a.pinned != b.pinned { return a.pinned }
             return a.date > b.date
