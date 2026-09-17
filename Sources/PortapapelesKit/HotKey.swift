@@ -137,10 +137,17 @@ enum Paster {
     /// Espera a que sueltes los modificadores antes de mandar el ⌘V. Si el ⌥ del atajo sigue
     /// apretado, el sistema fusiona las teclas y lo que llega es ⌥⌘V — es decir, el propio
     /// atajo otra vez, y el panel se reabre en vez de pegar.
+    /// ¿Hay que esperar a que suelte las teclas antes de mandar el ⌘V? El ⌘ no
+    /// cuenta: es el del propio pegado. Agotados los intentos se manda igual, que
+    /// es mejor que no pegar nunca.
+    static func shouldDefer(held: NSEvent.ModifierFlags, retries: Int) -> Bool {
+        guard retries > 0 else { return false }
+        return !held.intersection([.option, .control, .shift]).isEmpty
+    }
+
     static func pressCommandV(retries: Int = 8) {
         guard isTrusted else { return }
-        let held = NSEvent.modifierFlags.intersection([.option, .control, .shift])
-        if !held.isEmpty, retries > 0 {
+        if shouldDefer(held: NSEvent.modifierFlags, retries: retries) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { pressCommandV(retries: retries - 1) }
             return
         }

@@ -10,13 +10,23 @@ enum CaretLocator {
         guard AXIsProcessTrusted() else { return nil }
         guard let focused = focusedElement() else { return nil }
 
-        if let rect = boundsOfSelection(in: focused), rect.width < 10_000, rect.height < 10_000,
+        guard let rect = normalize(selectionBounds: boundsOfSelection(in: focused),
+                                   elementFrame: frame(of: focused)) else { return nil }
+        return flip(rect)
+    }
+
+    /// Elige el rectángulo del cursor y descarta lo que no tiene sentido.
+    ///
+    /// Algunas apps (las hechas con Electron o Java, sobre todo) reportan medidas
+    /// absurdas; sin este filtro el panel aparecía en cualquier parte. Si no hay
+    /// cursor de texto se usa la esquina superior izquierda del control enfocado.
+    static func normalize(selectionBounds: CGRect?, elementFrame: CGRect?) -> CGRect? {
+        if let rect = selectionBounds, rect.width < 10_000, rect.height < 10_000,
            rect.width >= 0, rect.height > 0 {
-            return flip(rect)
+            return rect
         }
-        if let rect = frame(of: focused), rect.height > 0 {
-            // Sin cursor de texto: usamos la esquina superior izquierda del control enfocado.
-            return flip(CGRect(x: rect.minX, y: rect.minY, width: 1, height: min(rect.height, 24)))
+        if let rect = elementFrame, rect.height > 0 {
+            return CGRect(x: rect.minX, y: rect.minY, width: 1, height: min(rect.height, 24))
         }
         return nil
     }
@@ -70,7 +80,12 @@ enum CaretLocator {
     /// Accesibilidad usa el origen arriba-izquierda de la pantalla principal; Cocoa, abajo-izquierda.
     private static func flip(_ rect: CGRect) -> CGRect {
         let primary = NSScreen.screens.first { $0.frame.origin == .zero } ?? NSScreen.screens.first
-        let height = primary?.frame.height ?? 0
-        return CGRect(x: rect.minX, y: height - rect.maxY, width: rect.width, height: rect.height)
+        return flip(rect, primaryHeight: primary?.frame.height ?? 0)
+    }
+
+    /// El volteo en sí. Un error aquí manda el panel al borde contrario de la
+    /// pantalla, y eso no se ve sin un monitor delante.
+    static func flip(_ rect: CGRect, primaryHeight: CGFloat) -> CGRect {
+        CGRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
     }
 }

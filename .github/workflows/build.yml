@@ -1,0 +1,47 @@
+name: build
+
+# Lo que comprueba un runner sin Mac delante: que compile sin warnings, que los
+# tests de la lógica pasen y que el bundle quede armado y firmado. Si el panel se
+# abre donde tiene que abrirse sigue siendo cosa de probar ⌥⌘V a mano.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Entorno
+        run: |
+          sw_vers
+          swift --version
+          xcodebuild -version
+
+      - name: Compilar (debug, con warnings a la vista)
+        run: swift build -v 2>&1 | tail -80
+
+      - name: Sin warnings
+        run: |
+          swift build 2>&1 | tee /tmp/build.log
+          ! grep -q "warning:" /tmp/build.log
+
+      - name: Tests
+        run: swift test
+
+      - name: Compilar y empaquetar (release)
+        run: ./build.sh
+
+      - name: Comprobar el bundle
+        run: |
+          APP="build/Portapapeles.app"
+          test -x "$APP/Contents/MacOS/Portapapeles"
+          test -f "$APP/Contents/Resources/AppIcon.icns"
+          test -f "$APP/Contents/Resources/en.lproj/Localizable.strings"
+          test -f "$APP/Contents/Resources/es.lproj/Localizable.strings"
+          codesign --verify --verbose "$APP"
+          plutil -lint "$APP/Contents/Info.plist"

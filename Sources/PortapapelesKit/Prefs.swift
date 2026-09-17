@@ -4,7 +4,7 @@ import Combine
 /// Preferencias de la app. Todo en UserDefaults.
 final class Prefs: ObservableObject {
     static let shared = Prefs()
-    private let d = UserDefaults.standard
+    private let d: UserDefaults
 
     @Published var hotKeyCode: Int { didSet { d.set(hotKeyCode, forKey: K.hotKeyCode) } }
     @Published var hotKeyMods: Int { didSet { d.set(hotKeyMods, forKey: K.hotKeyMods) } }
@@ -57,7 +57,10 @@ final class Prefs: ObservableObject {
         static let panelY = "panelY"
     }
 
-    private init() {
+    /// Dónde se guardan las preferencias. Se recibe para que las pruebas usen un
+    /// dominio aparte y no toquen las del usuario.
+    init(defaults: UserDefaults = .standard) {
+        d = defaults
         d.register(defaults: [
             K.hotKeyCode: HotKeySpec.defaultShortcut.keyCode,
             K.hotKeyMods: HotKeySpec.defaultShortcut.modifiers,

@@ -48,9 +48,11 @@ final class PanelController {
     /// puntero. Sin esto, la tarjeta que quede bajo el ratón se selecciona sola y el ⏎,
     /// el ⌘P o el ⌘⌫ actúan sobre ella en vez de sobre la primera. El hover manda solo
     /// después de que el ratón se haya movido de verdad.
-    var hoverCanSelect: Bool {
-        let now = NSEvent.mouseLocation
-        return hypot(now.x - mouseAtOpen.x, now.y - mouseAtOpen.y) > 3
+    var hoverCanSelect: Bool { Self.hoverCanSelect(now: NSEvent.mouseLocation, atOpen: mouseAtOpen) }
+
+    /// El ratón tiene que haberse movido de verdad, no un pixel de temblor.
+    nonisolated static func hoverCanSelect(now: CGPoint, atOpen: CGPoint, threshold: CGFloat = 3) -> Bool {
+        hypot(now.x - atOpen.x, now.y - atOpen.y) > threshold
     }
 
     var isVisible: Bool { panel?.isVisible == true }
@@ -237,9 +239,7 @@ final class PanelController {
         if prefs.hasPanelPosition {
             let saved = CGPoint(x: prefs.panelX, y: prefs.panelY)
             if let screen = screenContaining(saved) ?? NSScreen.main {
-                let visible = screen.visibleFrame
-                return CGPoint(x: min(max(saved.x, visible.minX + 8), visible.maxX - size.width - 8),
-                               y: min(max(saved.y, visible.minY + 8), visible.maxY - size.height - 8))
+                return Self.clamp(saved, size: size, visible: screen.visibleFrame)
             }
         }
         let anchorRect: CGRect
@@ -250,28 +250,53 @@ final class PanelController {
             anchorRect = mouseRect()
         case .center:
             guard let screen = screenForMouse() else { return .zero }
-            return CGPoint(x: screen.visibleFrame.midX - size.width / 2,
-                           y: screen.visibleFrame.midY - size.height / 2)
+            return Self.centered(size, in: screen.visibleFrame)
         }
 
         guard let screen = screenContaining(anchorRect.origin) ?? screenForMouse() else { return .zero }
-        let visible = screen.visibleFrame
-
-        // Por debajo del cursor; si no cabe, por arriba.
-        var y = anchorRect.minY - gap - size.height
-        if y < visible.minY {
-            let above = anchorRect.maxY + gap
-            y = (above + size.height <= visible.maxY) ? above : visible.minY + 8
-        }
-        var x = anchorRect.minX
-        x = min(max(x, visible.minX + 8), visible.maxX - size.width - 8)
-        y = min(max(y, visible.minY + 8), visible.maxY - size.height - 8)
-        return CGPoint(x: x, y: y)
+        return Self.origin(for: size, anchor: anchorRect, visible: screen.visibleFrame, gap: gap)
     }
 
-    private func mouseRect() -> CGRect {
-        let p = NSEvent.mouseLocation
-        return CGRect(x: p.x, y: p.y - 18, width: 1, height: 18)
+    /// Margen que se deja siempre contra el borde de la pantalla.
+    nonisolated static let screenMargin: CGFloat = 8
+
+    /// Mete el panel dentro de la pantalla.
+    ///
+    /// El tope de arriba se calcula con `max`: en una pantalla más angosta que el
+    /// panel, el límite superior queda por debajo del inferior y encajarlo al
+    /// revés mandaba el panel fuera por la izquierda, sin forma de recuperarlo
+    /// salvo con "Restablecer posición".
+    nonisolated static func clamp(_ point: CGPoint, size: CGSize, visible: CGRect,
+                      margin: CGFloat = screenMargin) -> CGPoint {
+        let minX = visible.minX + margin
+        let minY = visible.minY + margin
+        let maxX = max(minX, visible.maxX - size.width - margin)
+        let maxY = max(minY, visible.maxY - size.height - margin)
+        return CGPoint(x: min(max(point.x, minX), maxX),
+                       y: min(max(point.y, minY), maxY))
+    }
+
+    /// Debajo del cursor de texto; si no cabe, encima; y si tampoco, pegado abajo.
+    nonisolated static func origin(for size: CGSize, anchor: CGRect, visible: CGRect, gap: CGFloat) -> CGPoint {
+        var y = anchor.minY - gap - size.height
+        if y < visible.minY {
+            let above = anchor.maxY + gap
+            y = (above + size.height <= visible.maxY) ? above : visible.minY + screenMargin
+        }
+        return clamp(CGPoint(x: anchor.minX, y: y), size: size, visible: visible)
+    }
+
+    /// El panel centrado en la pantalla.
+    nonisolated static func centered(_ size: CGSize, in visible: CGRect) -> CGPoint {
+        CGPoint(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2)
+    }
+
+    private func mouseRect() -> CGRect { Self.mouseRect(at: NSEvent.mouseLocation) }
+
+    /// Un cursor de texto imaginario bajo el puntero, para colocar el panel igual
+    /// que cuando sí se sabe dónde está el cursor de verdad.
+    nonisolated static func mouseRect(at point: CGPoint) -> CGRect {
+        CGRect(x: point.x, y: point.y - 18, width: 1, height: 18)
     }
 
     private func screenContaining(_ point: CGPoint) -> NSScreen? {
@@ -316,44 +341,67 @@ final class PanelController {
         if command { ClipDebug.log("atajo en el panel: code=\(event.keyCode)") }
         let shift = event.modifierFlags.contains(.shift)
 
-        switch Int(event.keyCode) {
-        case kVK_DownArrow:
-            store.move(by: 1); return true
-        case kVK_UpArrow:
-            store.move(by: -1); return true
-        case kVK_Tab:
-            store.move(by: shift ? -1 : 1); return true
-        case kVK_Return, kVK_ANSI_KeypadEnter:
+        switch Self.action(keyCode: Int(event.keyCode), command: command, shift: shift,
+                           queryIsEmpty: store.query.isEmpty) {
+        case .move(let delta):
+            store.move(by: delta)
+        case .useSelected:
             if let item = store.selectedItem { store.use(item) }
-            return true
-        case kVK_Escape:
-            if !store.query.isEmpty { store.query = "" } else { hide(pasting: false) }
-            return true
-        // Las dos piden ⌘: sin él, ⌦ borraba el recorte en vez de un carácter del buscador.
-        case kVK_Delete where command, kVK_ForwardDelete where command:
+        case .clearQuery:
+            store.query = ""
+        case .close:
+            hide(pasting: false)
+        case .deleteSelected:
             if let item = store.selectedItem { withAnimation(.easeOut(duration: 0.12)) { store.remove(item) } }
-            return true
-        case kVK_ANSI_P where command:
+        case .togglePin:
             if let item = store.selectedItem { withAnimation(.easeOut(duration: 0.12)) { store.togglePin(item) } }
-            return true
-        default:
-            break
-        }
-
-        if command, let digit = Self.digitKeys[Int(event.keyCode)] {
+        case .pick(let position):
             let list = store.visibleItems
-            if list.indices.contains(digit - 1) {
-                store.selection = digit - 1
-                store.use(list[digit - 1])
+            if list.indices.contains(position - 1) {
+                store.selection = position - 1
+                store.use(list[position - 1])
             }
-            return true
+        case .passThrough:
+            return false
         }
-        return false
+        return true
+    }
+
+    /// Qué hace cada tecla mientras el panel está abierto.
+    enum PanelKeyAction: Equatable {
+        case move(Int)
+        case useSelected
+        case clearQuery
+        case close
+        case deleteSelected
+        case togglePin
+        /// Pegar el recorte que ocupa esa posición de la lista (⌘1…⌘9).
+        case pick(Int)
+        /// No es un atajo del panel: la tecla sigue su camino hasta el buscador.
+        case passThrough
+    }
+
+    nonisolated static func action(keyCode: Int, command: Bool, shift: Bool,
+                                   queryIsEmpty: Bool) -> PanelKeyAction {
+        switch keyCode {
+        case kVK_DownArrow: return .move(1)
+        case kVK_UpArrow: return .move(-1)
+        case kVK_Tab: return .move(shift ? -1 : 1)
+        case kVK_Return, kVK_ANSI_KeypadEnter: return .useSelected
+        // Esc limpia la búsqueda primero; solo cierra si ya no había nada escrito.
+        case kVK_Escape: return queryIsEmpty ? .close : .clearQuery
+        // Las dos piden ⌘: sin él, ⌦ borraba el recorte en vez de un carácter del buscador.
+        case kVK_Delete where command, kVK_ForwardDelete where command: return .deleteSelected
+        case kVK_ANSI_P where command: return .togglePin
+        default:
+            if command, let digit = digitKeys[keyCode] { return .pick(digit) }
+            return .passThrough
+        }
     }
 
     /// La fila de números y también el teclado numérico: con un teclado completo el ⌘2 del
     /// bloque numérico manda otro código y antes no hacía nada.
-    private static let digitKeys: [Int: Int] = [
+    nonisolated static let digitKeys: [Int: Int] = [
         kVK_ANSI_1: 1, kVK_ANSI_2: 2, kVK_ANSI_3: 3, kVK_ANSI_4: 4, kVK_ANSI_5: 5,
         kVK_ANSI_6: 6, kVK_ANSI_7: 7, kVK_ANSI_8: 8, kVK_ANSI_9: 9,
         kVK_ANSI_Keypad1: 1, kVK_ANSI_Keypad2: 2, kVK_ANSI_Keypad3: 3, kVK_ANSI_Keypad4: 4,
