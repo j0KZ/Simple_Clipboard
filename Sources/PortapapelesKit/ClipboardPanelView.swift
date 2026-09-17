@@ -3,9 +3,15 @@ import AppKit
 
 /// El panel, calcado del Win+V: cabecera, buscador y tarjetas. Clic en una y se pega.
 struct ClipboardPanelView: View {
-    @ObservedObject private var store = ClipboardStore.shared
+    @ObservedObject private var store: ClipboardStore
     @ObservedObject private var prefs = Prefs.shared
     @FocusState private var searchFocused: Bool
+
+    /// El historial se recibe para que las previews puedan pasar uno de mentira;
+    /// la app siempre usa el de verdad.
+    init(store: ClipboardStore) {
+        _store = ObservedObject(wrappedValue: store)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
